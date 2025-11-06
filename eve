@@ -1,0 +1,253 @@
+// Main.jsx
+// React component for Simba Events auth page (no Tailwind).
+// Save as Main.jsx and place main.css alongside it. This is a single-file React component
+// that uses localStorage as a mock backend for signup/login. Replace storage logic
+// with real API calls when integrating with your server.
+
+import React, { useState, useEffect } from 'react';
+import './main.css';
+
+export default function SimbaAuth() {
+  const [mode, setMode] = useState('login'); // 'login' | 'signup'
+  const [loading, setLoading] = useState(false);
+
+  // Login fields
+  const [loginEmail, setLoginEmail] = useState('');
+  const [loginPassword, setLoginPassword] = useState('');
+
+  // Signup fields
+  const [fullName, setFullName] = useState('');
+  const [role, setRole] = useState('');
+  const [signupEmail, setSignupEmail] = useState('');
+  const [signupPassword, setSignupPassword] = useState('');
+  const [phone, setPhone] = useState('');
+  const [address, setAddress] = useState('');
+
+  // Feedback
+  const [message, setMessage] = useState(null);
+  const [error, setError] = useState(null);
+
+  useEffect(() => {
+    // clear messages when mode changes
+    setMessage(null);
+    setError(null);
+  }, [mode]);
+
+  // Simple validators
+  const isEmail = s => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s);
+  const isPhone = s => s.trim() === '' || /^\+?[0-9]{7,15}$/.test(s);
+  const isStrongPassword = p => p.length >= 6;
+
+  // Mock backend (localStorage) helpers
+  const USERS_KEY = 'simba_users_v1';
+
+  function readUsers() {
+    try {
+      const raw = localStorage.getItem(USERS_KEY);
+      return raw ? JSON.parse(raw) : [];
+    } catch (e) { return []; }
+  }
+
+  function writeUsers(users) {
+    localStorage.setItem(USERS_KEY, JSON.stringify(users));
+  }
+
+  // Signup handler
+  const handleSignup = (e) => {
+    e.preventDefault();
+    setError(null);
+    setMessage(null);
+
+    if (!fullName.trim()) return setError('Please enter full name');
+    if (!role) return setError('Please select a role');
+    if (!isEmail(signupEmail)) return setError('Please enter a valid email');
+    if (!isStrongPassword(signupPassword)) return setError('Password must be at least 6 characters');
+    if (!isPhone(phone)) return setError('Please enter a valid phone number or leave blank');
+
+    setLoading(true);
+    setTimeout(() => {
+      const users = readUsers();
+      if (users.find(u => u.email.toLowerCase() === signupEmail.toLowerCase())) {
+        setLoading(false);
+        return setError('An account with that email already exists');
+      }
+
+      const newUser = {
+        id: Date.now(),
+        fullName,
+        role,
+        email: signupEmail,
+        password: signupPassword, // NOTE: store hashed passwords on a real backend
+        phone,
+        address
+      };
+
+      users.push(newUser);
+      writeUsers(users);
+      setLoading(false);
+      setMessage('Account created. You can now sign in.');
+
+      // Reset signup fields and switch to login
+      setFullName(''); setRole(''); setSignupEmail(''); setSignupPassword(''); setPhone(''); setAddress('');
+      setMode('login');
+    }, 700);
+  };
+
+  // Login handler
+  const handleLogin = (e) => {
+    e.preventDefault();
+    setError(null);
+    setMessage(null);
+
+    if (!isEmail(loginEmail)) return setError('Please enter a valid email');
+    if (!loginPassword) return setError('Please enter your password');
+
+    setLoading(true);
+    setTimeout(() => {
+      const users = readUsers();
+      const match = users.find(u => u.email.toLowerCase() === loginEmail.toLowerCase() && u.password === loginPassword);
+      setLoading(false);
+      if (!match) return setError('Invalid email or password');
+
+      // Mock success: store "session"
+      localStorage.setItem('simba_session', JSON.stringify({userId: match.id, email: match.email}));
+      setMessage(`Welcome back, ${match.fullName.split(' ')[0] || match.email}`);
+
+      // Clear login fields
+      setLoginEmail(''); setLoginPassword('');
+    }, 600);
+  };
+
+  return (
+    <div className="simba-root">
+      <aside className="brand-panel">
+        <div>
+          <h1>Simba Events</h1>
+          <p>Manage events, attendees and schedules — all in one place.</p>
+        </div>
+        <div className="mode-toggle">
+          <button className={mode === 'login' ? 'active' : ''} onClick={() => setMode('login')}>Login</button>
+          <button className={mode === 'signup' ? 'active' : ''} onClick={() => setMode('signup')}>Signup</button>
+        </div>
+      </aside>
+
+      <main className="card">
+        <div className="card-inner">
+          <div className="header">
+            <h2>{mode === 'login' ? 'Welcome back' : 'Create account'}</h2>
+            <div className="switch">
+              <button onClick={() => setMode('login')} className={mode === 'login' ? 'small active' : 'small'}>Login</button>
+              <button onClick={() => setMode('signup')} className={mode === 'signup' ? 'small active' : 'small'}>Signup</button>
+            </div>
+          </div>
+
+          {error && <div className="alert error">{error}</div>}
+          {message && <div className="alert success">{message}</div>}
+
+          {mode === 'login' && (
+            <form onSubmit={handleLogin} className="form">
+              <label>
+                <span>Email</span>
+                <input type="email" value={loginEmail} onChange={e => setLoginEmail(e.target.value)} placeholder="you@domain.com" required />
+              </label>
+
+              <label>
+                <span>Password</span>
+                <input type="password" value={loginPassword} onChange={e => setLoginPassword(e.target.value)} placeholder="Enter your password" required />
+              </label>
+
+              <div className="row between">
+                <label className="small"><input type="checkbox" /> Remember me</label>
+                <button type="button" className="link">Forgot?</button>
+              </div>
+
+              <button className="primary" type="submit" disabled={loading}>{loading ? 'Signing in...' : 'Sign in'}</button>
+
+              <p className="muted">Don't have an account? <button type="button" className="link" onClick={() => setMode('signup')}>Create one</button></p>
+            </form>
+          )}
+
+          {mode === 'signup' && (
+            <form onSubmit={handleSignup} className="form">
+              <label>
+                <span>Full name</span>
+                <input type="text" value={fullName} onChange={e => setFullName(e.target.value)} placeholder="First Last" required />
+              </label>
+
+              <label>
+                <span>Role</span>
+                <select value={role} onChange={e => setRole(e.target.value)} required>
+                  <option value="">Select role</option>
+                  <option value="attendee">Attendee</option>
+                  <option value="organizer">Organizer</option>
+                  <option value="vendor">Vendor</option>
+                  <option value="speaker">Speaker</option>
+                </select>
+              </label>
+
+              <label>
+                <span>Email</span>
+                <input type="email" value={signupEmail} onChange={e => setSignupEmail(e.target.value)} placeholder="you@domain.com" required />
+              </label>
+
+              <label>
+                <span>Password</span>
+                <input type="password" value={signupPassword} onChange={e => setSignupPassword(e.target.value)} placeholder="Create a password" required />
+              </label>
+
+              <label>
+                <span>Phone</span>
+                <input type="tel" value={phone} onChange={e => setPhone(e.target.value)} placeholder="+911234567890" />
+              </label>
+
+              <label>
+                <span>Address</span>
+                <textarea value={address} onChange={e => setAddress(e.target.value)} rows={3} placeholder="Street, City, State" />
+              </label>
+
+              <button className="primary" type="submit" disabled={loading}>{loading ? 'Creating...' : 'Create account'}</button>
+
+              <p className="muted">Already have an account? <button type="button" className="link" onClick={() => setMode('login')}>Sign in</button></p>
+            </form>
+          )}
+        </div>
+      </main>
+    </div>
+  );
+}
+
+/* ---------------- main.css ---------------- */
+
+/* Basic resets */
+.simba-root{display:flex;max-width:980px;margin:40px auto;border-radius:12px;overflow:hidden;box-shadow:0 8px 30px rgba(2,6,23,0.08);font-family:Inter, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial}
+.brand-panel{flex:1;padding:36px;background:linear-gradient(180deg,#0ea5e9,#0369a1);color:white;display:flex;flex-direction:column;justify-content:space-between}
+.brand-panel h1{margin:0;font-size:28px}
+.brand-panel p{margin:6px 0 0 0;opacity:0.95}
+.mode-toggle{margin-top:18px;background:rgba(255,255,255,0.12);padding:6px;border-radius:999px;display:inline-flex}
+.mode-toggle button{background:transparent;border:0;color:rgba(255,255,255,0.9);padding:8px 12px;border-radius:999px;font-weight:600;cursor:pointer}
+.mode-toggle button.active{background:white;color:#0369a1}
+
+.card{flex:1;padding:30px;background:#ffffff}
+.card-inner{max-width:460px;margin:0 auto}
+.header{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}
+.header h2{margin:0}
+.switch .small{border:0;background:none;cursor:pointer;padding:6px 8px;border-radius:6px}
+.switch .small.active{background:#e6f2fb}
+
+.form{display:flex;flex-direction:column;gap:12px}
+label{display:flex;flex-direction:column;gap:6px;font-size:14px}
+input[type=text],input[type=email],input[type=password],input[type=tel],select,textarea{padding:10px;border-radius:8px;border:1px solid #e6e9ef;font-size:14px}
+.row.between{display:flex;justify-content:space-between;align-items:center}
+.small{font-size:13px;color:#6b7280}
+.primary{background:#0b74d1;color:white;border:0;padding:10px 12px;border-radius:8px;font-weight:600;cursor:pointer}
+.link{background:none;border:0;color:#0b74d1;cursor:pointer;padding:0;font-size:14px}
+.muted{font-size:13px;color:#6b7280;text-align:center}
+.alert{padding:10px;border-radius:8px;margin-bottom:8px}
+.alert.error{background:#fff1f0;color:#9b1c1c;border:1px solid rgba(239,68,68,0.12)}
+.alert.success{background:#f0fdf4;color:#14532d;border:1px solid rgba(16,185,129,0.08)}
+
+@media(max-width:820px){
+  .simba-root{flex-direction:column;margin:20px}
+  .brand-panel{flex-direction:row;align-items:center;justify-content:space-between;padding:16px}
+  .card{padding:18px}
+}
