@@ -1,21 +1,126 @@
-// Main.jsx
-// React component for Simba Events auth page (no Tailwind).
-// Save as Main.jsx and place main.css alongside it. This is a single-file React component
-// that uses localStorage as a mock backend for signup/login. Replace storage logic
-// with real API calls when integrating with your server.
+// LandingPage.jsx
+import React from 'react';
+import { useNavigate } from 'react-router-dom';
+import './landing.css';
 
-import React, { useState, useEffect } from 'react';
+export default function LandingPage() {
+  const nav = useNavigate();
+
+  return (
+    <div className="landing-root">
+      <header className="hero">
+        <div className="hero-inner">
+          <h1 className="title">Simba Events</h1>
+          <p className="tagline">Manage events, attendees and schedules — all in one place.</p>
+
+          <div className="cta-row">
+            <button
+              className="btn btn-primary"
+              onClick={() => nav('/auth?mode=login')}
+            >
+              Login
+            </button>
+
+            <button
+              className="btn btn-accent"
+              onClick={() => nav('/auth?mode=signup')}
+            >
+              Sign up
+            </button>
+          </div>
+
+          <p className="small-note">Create or join events quickly — secure sign-in.</p>
+        </div>
+
+        <div className="hero-visual" aria-hidden>
+          {/* optional illustration or hero card; keep empty or replace with an <img> */}
+        </div>
+      </header>
+
+      <section className="features">
+        <div className="feature">
+          <h3>Easy Setup</h3>
+          <p>Get started with a single click — create and manage events.</p>
+        </div>
+        <div className="feature">
+          <h3>Attendee Management</h3>
+          <p>Check-ins, schedules, and tickets in one dashboard.</p>
+        </div>
+        <div className="feature">
+          <h3>Secure</h3>
+          <p>Modern authentication flow and role-based access.</p>
+        </div>
+      </section>
+    </div>
+  );
+}
+--------------------------------------------------------------------------------------
+/* landing.css - Simba Events landing (no Tailwind) */
+
+:root{
+  --primary: #7A4F3E;   /* buttons, headings */
+  --accent:  #FFA726;   /* highlights */
+  --sec1:    #4DB16A;   /* secondary */
+  --burg:    #88024F;   /* burgundy */
+  --soft:    #F5F5BC;   /* soft background */
+  --text:    #2F2F2F;   /* modern grey */
+  --muted:   #6b7280;
+}
+
+*{box-sizing:border-box}
+body{margin:0;font-family:Inter, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;background:white;color:var(--text)}
+
+/* layout */
+.landing-root{max-width:1100px;margin:36px auto;padding:18px}
+
+/* hero */
+.hero{display:flex;gap:28px;align-items:center;padding:28px;border-radius:12px;background:linear-gradient(180deg,var(--soft),#ffffff);box-shadow:0 6px 20px rgba(15,15,15,0.06)}
+.hero-inner{flex:1;min-width:320px}
+.title{margin:0;font-size:36px;color:var(--primary);letter-spacing:0.2px}
+.tagline{margin:8px 0 18px 0;color:var(--text);opacity:0.95;font-size:16px}
+
+/* ctas */
+.cta-row{display:flex;gap:12px;margin-bottom:12px}
+.btn{padding:12px 18px;border-radius:10px;border:none;font-weight:600;cursor:pointer;font-size:15px}
+.btn:active{transform:translateY(1px)}
+.btn-primary{background:var(--primary);color:white;box-shadow:0 6px 18px rgba(122,79,62,0.12)}
+.btn-accent{background:var(--accent);color:#2b2b2b}
+.small-note{font-size:13px;color:var(--muted)}
+
+/* features */
+.features{display:flex;gap:14px;margin-top:22px}
+.feature{flex:1;padding:14px;border-radius:10px;background:white;border:1px solid rgba(16,24,40,0.03);box-shadow:0 6px 15px rgba(2,6,23,0.03)}
+.feature h3{margin:0 0 6px 0;color:var(--primary)}
+.feature p{margin:0;color:var(--muted);font-size:14px}
+
+/* responsive */
+@media(max-width:860px){
+  .hero{flex-direction:column;align-items:flex-start}
+  .features{flex-direction:column}
+}
+---------------------------------------------------------------------------
+// SimbaAuth.jsx
+import React, { useEffect, useState } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import './main.css';
 
 export default function SimbaAuth() {
-  const [mode, setMode] = useState('login'); // 'login' | 'signup'
-  const [loading, setLoading] = useState(false);
+  const location = useLocation();
+  const navigate = useNavigate();
 
-  // Login fields
+  // mode comes from ?mode=signup or ?mode=login
+  const [mode, setMode] = useState('login');
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const m = params.get('mode');
+    setMode(m === 'signup' ? 'signup' : 'login');
+  }, [location.search]);
+
+  const [loading, setLoading] = useState(false);
+  // login fields
   const [loginEmail, setLoginEmail] = useState('');
   const [loginPassword, setLoginPassword] = useState('');
-
-  // Signup fields
+  // signup fields
   const [fullName, setFullName] = useState('');
   const [role, setRole] = useState('');
   const [signupEmail, setSignupEmail] = useState('');
@@ -23,36 +128,28 @@ export default function SimbaAuth() {
   const [phone, setPhone] = useState('');
   const [address, setAddress] = useState('');
 
-  // Feedback
   const [message, setMessage] = useState(null);
   const [error, setError] = useState(null);
 
-  useEffect(() => {
-    // clear messages when mode changes
-    setMessage(null);
-    setError(null);
-  }, [mode]);
-
-  // Simple validators
   const isEmail = s => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s);
   const isPhone = s => s.trim() === '' || /^\+?[0-9]{7,15}$/.test(s);
   const isStrongPassword = p => p.length >= 6;
 
-  // Mock backend (localStorage) helpers
   const USERS_KEY = 'simba_users_v1';
 
   function readUsers() {
     try {
       const raw = localStorage.getItem(USERS_KEY);
       return raw ? JSON.parse(raw) : [];
-    } catch (e) { return []; }
+    } catch {
+      return [];
+    }
   }
-
   function writeUsers(users) {
     localStorage.setItem(USERS_KEY, JSON.stringify(users));
   }
 
-  // Signup handler
+  // Signup
   const handleSignup = (e) => {
     e.preventDefault();
     setError(null);
@@ -71,7 +168,6 @@ export default function SimbaAuth() {
         setLoading(false);
         return setError('An account with that email already exists');
       }
-
       const newUser = {
         id: Date.now(),
         fullName,
@@ -81,24 +177,22 @@ export default function SimbaAuth() {
         phone,
         address
       };
-
       users.push(newUser);
       writeUsers(users);
       setLoading(false);
       setMessage('Account created. You can now sign in.');
-
-      // Reset signup fields and switch to login
+      // reset and go to login
       setFullName(''); setRole(''); setSignupEmail(''); setSignupPassword(''); setPhone(''); setAddress('');
-      setMode('login');
+      // navigate to login mode (updates URL)
+      navigate('/auth?mode=login', { replace: true });
     }, 700);
   };
 
-  // Login handler
+  // Login
   const handleLogin = (e) => {
     e.preventDefault();
     setError(null);
     setMessage(null);
-
     if (!isEmail(loginEmail)) return setError('Please enter a valid email');
     if (!loginPassword) return setError('Please enter your password');
 
@@ -109,12 +203,12 @@ export default function SimbaAuth() {
       setLoading(false);
       if (!match) return setError('Invalid email or password');
 
-      // Mock success: store "session"
-      localStorage.setItem('simba_session', JSON.stringify({userId: match.id, email: match.email}));
+      // Mock session
+      localStorage.setItem('simba_session', JSON.stringify({ userId: match.id, email: match.email }));
       setMessage(`Welcome back, ${match.fullName.split(' ')[0] || match.email}`);
-
-      // Clear login fields
       setLoginEmail(''); setLoginPassword('');
+      // In a real app redirect to dashboard:
+      // navigate('/dashboard');
     }, 600);
   };
 
@@ -126,8 +220,8 @@ export default function SimbaAuth() {
           <p>Manage events, attendees and schedules — all in one place.</p>
         </div>
         <div className="mode-toggle">
-          <button className={mode === 'login' ? 'active' : ''} onClick={() => setMode('login')}>Login</button>
-          <button className={mode === 'signup' ? 'active' : ''} onClick={() => setMode('signup')}>Signup</button>
+          <button className={mode === 'login' ? 'active' : ''} onClick={() => navigate('/auth?mode=login')}>Login</button>
+          <button className={mode === 'signup' ? 'active' : ''} onClick={() => navigate('/auth?mode=signup')}>Signup</button>
         </div>
       </aside>
 
@@ -136,8 +230,8 @@ export default function SimbaAuth() {
           <div className="header">
             <h2>{mode === 'login' ? 'Welcome back' : 'Create account'}</h2>
             <div className="switch">
-              <button onClick={() => setMode('login')} className={mode === 'login' ? 'small active' : 'small'}>Login</button>
-              <button onClick={() => setMode('signup')} className={mode === 'signup' ? 'small active' : 'small'}>Signup</button>
+              <button onClick={() => navigate('/auth?mode=login')} className={mode === 'login' ? 'small active' : 'small'}>Login</button>
+              <button onClick={() => navigate('/auth?mode=signup')} className={mode === 'signup' ? 'small active' : 'small'}>Signup</button>
             </div>
           </div>
 
@@ -163,7 +257,7 @@ export default function SimbaAuth() {
 
               <button className="primary" type="submit" disabled={loading}>{loading ? 'Signing in...' : 'Sign in'}</button>
 
-              <p className="muted">Don't have an account? <button type="button" className="link" onClick={() => setMode('signup')}>Create one</button></p>
+              <p className="muted">Don't have an account? <button type="button" className="link" onClick={() => navigate('/auth?mode=signup')}>Create one</button></p>
             </form>
           )}
 
@@ -207,7 +301,7 @@ export default function SimbaAuth() {
 
               <button className="primary" type="submit" disabled={loading}>{loading ? 'Creating...' : 'Create account'}</button>
 
-              <p className="muted">Already have an account? <button type="button" className="link" onClick={() => setMode('login')}>Sign in</button></p>
+              <p className="muted">Already have an account? <button type="button" className="link" onClick={() => navigate('/auth?mode=login')}>Sign in</button></p>
             </form>
           )}
         </div>
@@ -215,11 +309,22 @@ export default function SimbaAuth() {
     </div>
   );
 }
+------------------------------------------------------------------------------------------------------------------------------
+/* main.css - styles for SimbaAuth component (no Tailwind) */
 
-/* ---------------- main.css ---------------- */
+:root{
+  --primary: #7A4F3E;
+  --accent:  #FFA726;
+  --text:    #2F2F2F;
+  --muted:   #6b7280;
+  --danger:  #ef4444;
+}
 
-/* Basic resets */
-.simba-root{display:flex;max-width:980px;margin:40px auto;border-radius:12px;overflow:hidden;box-shadow:0 8px 30px rgba(2,6,23,0.08);font-family:Inter, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial}
+*{box-sizing:border-box}
+body{margin:0;font-family:Inter, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;background:white;color:var(--text)}
+
+/* layout for auth */
+.simba-root{display:flex;max-width:980px;margin:40px auto;border-radius:12px;overflow:hidden;box-shadow:0 8px 30px rgba(2,6,23,0.08)}
 .brand-panel{flex:1;padding:36px;background:linear-gradient(180deg,#0ea5e9,#0369a1);color:white;display:flex;flex-direction:column;justify-content:space-between}
 .brand-panel h1{margin:0;font-size:28px}
 .brand-panel p{margin:6px 0 0 0;opacity:0.95}
@@ -238,10 +343,10 @@ export default function SimbaAuth() {
 label{display:flex;flex-direction:column;gap:6px;font-size:14px}
 input[type=text],input[type=email],input[type=password],input[type=tel],select,textarea{padding:10px;border-radius:8px;border:1px solid #e6e9ef;font-size:14px}
 .row.between{display:flex;justify-content:space-between;align-items:center}
-.small{font-size:13px;color:#6b7280}
-.primary{background:#0b74d1;color:white;border:0;padding:10px 12px;border-radius:8px;font-weight:600;cursor:pointer}
-.link{background:none;border:0;color:#0b74d1;cursor:pointer;padding:0;font-size:14px}
-.muted{font-size:13px;color:#6b7280;text-align:center}
+.small{font-size:13px;color:var(--muted)}
+.primary{background:var(--primary);color:white;border:0;padding:10px 12px;border-radius:8px;font-weight:600;cursor:pointer}
+.link{background:none;border:0;color:var(--accent);cursor:pointer;padding:0;font-size:14px}
+.muted{font-size:13px;color:var(--muted);text-align:center}
 .alert{padding:10px;border-radius:8px;margin-bottom:8px}
 .alert.error{background:#fff1f0;color:#9b1c1c;border:1px solid rgba(239,68,68,0.12)}
 .alert.success{background:#f0fdf4;color:#14532d;border:1px solid rgba(16,185,129,0.08)}
