@@ -750,3 +750,73 @@ export default function App() {
     </BrowserRouter>
   );
 }
+-------------------------------------
+// src/api.js
+import axios from "axios";
+
+// ✅ 1. Base URL — set via .env or fallback
+const API_BASE = process.env.REACT_APP_API_URL || "https://localhost:7283/api";
+
+// ✅ 2. Create axios instance
+const api = axios.create({
+  baseURL: API_BASE,
+  headers: {
+    "Content-Type": "application/json",
+  },
+});
+
+// ✅ 3. Automatically attach token to requests
+api.interceptors.request.use(
+  (config) => {
+    const token = localStorage.getItem("token");
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`;
+    }
+    return config;
+  },
+  (error) => Promise.reject(error)
+);
+
+// ✅ 4. LOGIN request
+export async function loginUser(email, password) {
+  try {
+    const res = await api.post("/Users/login", { email, password });
+    const token = res.data.token || res.data; // depends on backend return
+    if (token) localStorage.setItem("token", token);
+    return res.data;
+  } catch (err) {
+    console.error("Login error:", err);
+    throw err.response?.data || { message: "Login failed" };
+  }
+}
+
+// ✅ 5. SIGNUP request
+export async function signupUser(userData) {
+  try {
+    const res = await api.post("/Users/register", userData);
+    return res.data;
+  } catch (err) {
+    console.error("Signup error:", err);
+    throw err.response?.data || { message: "Signup failed" };
+  }
+}
+
+// ✅ 6. Get logged-in user profile (optional)
+export async function getProfile() {
+  try {
+    const res = await api.get("/Users/me");
+    return res.data;
+  } catch (err) {
+    console.error("Profile fetch error:", err);
+    throw err.response?.data || { message: "Failed to fetch profile" };
+  }
+}
+
+// ✅ 7. Logout
+export function logoutUser() {
+  localStorage.removeItem("token");
+}
+
+// ✅ 8. Export default axios instance
+export default api;
+
