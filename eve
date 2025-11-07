@@ -1,15 +1,17 @@
+// LoginSignup.jsx
 import React, { useState } from "react";
 import axios from "axios";
-import { motion } from "framer-motion";
 
-// SIMBA Events Login + Signup Page using brand color palette
-// Colors:
-// Primary: #7A4F3E
-// Accent: #FFA726
-// Secondary 1: #4DB16C
-// Secondary 2: #88024F
-// Background: #F5F5BC
-// Grey: #3E3E3E
+/*
+  SIMBA Events — Login & Signup (plain React + CSS)
+  Brand colors:
+    Primary:   #7A4F3E
+    Accent:    #FFA726
+    Secondary1:#4DB16C
+    Secondary2:#88024F
+    Background:#F5F5BC
+    Grey:      #3E3E3E
+*/
 
 export default function LoginSignup() {
   const [mode, setMode] = useState("login");
@@ -35,9 +37,10 @@ export default function LoginSignup() {
     return e;
   }
 
-  const handleChange = (e) => {
-    setForm(prev => ({ ...prev, [e.target.name]: e.target.value }));
-    setErrors(prev => ({ ...prev, [e.target.name]: null }));
+  const handleChange = (ev) => {
+    const { name, value } = ev.target;
+    setForm((p) => ({ ...p, [name]: value }));
+    setErrors((p) => ({ ...p, [name]: null }));
     setMessage(null);
   };
 
@@ -52,13 +55,10 @@ export default function LoginSignup() {
 
     try {
       if (mode === "login") {
-        const res = await axios.post("/api/auth/login", {
-          email: form.email,
-          password: form.password,
-        });
+        await axios.post("/api/auth/login", { email: form.email, password: form.password });
         setMessage("Login successful. Redirecting...");
       } else {
-        const res = await axios.post("/api/auth/signup", {
+        await axios.post("/api/auth/signup", {
           name: form.name,
           email: form.email,
           password: form.password,
@@ -66,7 +66,7 @@ export default function LoginSignup() {
         });
         setMessage("Signup successful. You can now login.");
         setMode("login");
-        setForm(prev => ({ ...prev, password: "", confirmPassword: "" }));
+        setForm((p) => ({ ...p, password: "", confirmPassword: "" }));
       }
     } catch (err) {
       console.error(err);
@@ -88,112 +88,45 @@ export default function LoginSignup() {
           background: #F5F5BC;
           font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
           padding: 24px;
+          box-sizing: border-box;
         }
         .ls-card {
           background: #fff;
           width: 100%;
-          max-width: 420px;
-          border-radius: 16px;
-          box-shadow: 0 8px 20px rgba(0,0,0,0.1);
-          padding: 24px;
+          max-width: 460px;
+          border-radius: 14px;
+          box-shadow: 0 10px 30px rgba(0,0,0,0.08);
+          padding: 26px;
         }
-        .ls-header {
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-          margin-bottom: 16px;
+        .ls-header { display:flex; justify-content:space-between; align-items:center; margin-bottom:14px; }
+        .ls-title { font-size:20px; color:#7A4F3E; margin:0; font-weight:700; }
+        .ls-sub { font-size:13px; color:#3E3E3E; margin:4px 0 0 0; }
+        .ls-brand { font-size:13px; color:#88024F; font-weight:700; }
+        label { font-size:13px; color:#3E3E3E; display:block; margin-bottom:6px; }
+        input[type="text"], input[type="email"], input[type="password"] {
+          width:100%;
+          padding:10px 12px;
+          border:1px solid #e5e7eb;
+          border-radius:8px;
+          font-size:14px;
+          box-sizing:border-box;
+          margin-bottom:8px;
         }
-        .ls-title {
-          font-size: 22px;
-          color: #7A4F3E;
-          margin: 0;
-          font-weight: 700;
-        }
-        .ls-sub {
-          font-size: 13px;
-          color: #3E3E3E;
-          margin: 4px 0 0 0;
-        }
-        .ls-brand {
-          font-size: 13px;
-          color: #88024F;
-          font-weight: bold;
-        }
-        label {
-          font-size: 13px;
-          color: #3E3E3E;
-          display: block;
-          margin-bottom: 4px;
-        }
-        input {
-          width: 100%;
-          padding: 10px;
-          border: 1px solid #ddd;
-          border-radius: 8px;
-          font-size: 14px;
-          box-sizing: border-box;
-          margin-bottom: 8px;
-        }
-        input:focus {
-          outline: none;
-          border-color: #4DB16C;
-          box-shadow: 0 0 0 2px rgba(77,177,108,0.3);
-        }
-        .btn {
-          padding: 10px 14px;
-          border: none;
-          border-radius: 8px;
-          cursor: pointer;
-          font-size: 14px;
-          font-weight: bold;
-        }
-        .btn-primary {
-          background: #7A4F3E;
-          color: #fff;
-          transition: background 0.3s;
-        }
-        .btn-primary:hover { background: #6a4436; }
-        .btn-ghost {
-          background: #fff;
-          color: #7A4F3E;
-          border: 1px solid #7A4F3E;
-        }
-        .ls-error {
-          color: #88024F;
-          font-size: 12px;
-          margin-bottom: 6px;
-        }
-        .ls-role-group {
-          display: flex;
-          gap: 8px;
-          margin: 6px 0 12px 0;
-        }
-        .role-pill {
-          padding: 8px 12px;
-          border-radius: 6px;
-          border: 1px solid #ddd;
-          cursor: pointer;
-          font-size: 13px;
-        }
-        .role-pill.active {
-          background: #FFA726;
-          color: #fff;
-          border-color: #FFA726;
-        }
-        .ls-message {
-          font-size: 13px;
-          color: #4DB16C;
-          margin-top: 8px;
-        }
-        .ls-footer {
-          text-align: center;
-          font-size: 12px;
-          color: #3E3E3E;
-          margin-top: 14px;
-        }
+        input:focus { outline:none; border-color:#4DB16C; box-shadow:0 0 0 4px rgba(77,177,108,0.12); }
+        .btn { padding:10px 14px; border:none; border-radius:8px; cursor:pointer; font-size:14px; font-weight:700; }
+        .btn-primary { background:#7A4F3E; color:#fff; }
+        .btn-primary:hover { background:#6a4436; }
+        .btn-ghost { background:#fff; color:#7A4F3E; border:1px solid #7A4F3E; }
+        .ls-error { color:#88024F; font-size:12px; margin-top:4px; margin-bottom:6px; }
+        .ls-role-group { display:flex; gap:8px; margin:8px 0 12px 0; }
+        .role-pill { padding:8px 12px; border-radius:6px; border:1px solid #ddd; cursor:pointer; font-size:13px; background:#fff; }
+        .role-pill.active { background:#FFA726; color:#fff; border-color:#FFA726; }
+        .ls-message { font-size:13px; color:#4DB16C; margin-top:10px; }
+        .ls-footer { text-align:center; font-size:12px; color:#3E3E3E; margin-top:14px; }
+        @media (max-width:480px) { .ls-card { padding:18px; } .ls-root { padding:12px; } }
       `}</style>
 
-      <motion.div className="ls-card" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.35 }}>
+      <div className="ls-card">
         <div className="ls-header">
           <div>
             <h2 className="ls-title">{mode === "login" ? "Welcome back" : "Create account"}</h2>
@@ -202,41 +135,50 @@ export default function LoginSignup() {
           <div className="ls-brand">SIMBA</div>
         </div>
 
-        <form onSubmit={handleSubmit}>
+        <form onSubmit={handleSubmit} noValidate>
           {mode === "signup" && (
-            <div>
-              <label>Full Name</label>
-              <input name="name" value={form.name} onChange={handleChange} placeholder="Your full name" />
+            <>
+              <label htmlFor="name">Full Name</label>
+              <input id="name" name="name" value={form.name} onChange={handleChange} type="text" placeholder="Your full name" />
               {errors.name && <div className="ls-error">{errors.name}</div>}
-            </div>
+            </>
           )}
 
-          <label>Email</label>
-          <input name="email" value={form.email} onChange={handleChange} type="email" placeholder="you@example.com" />
+          <label htmlFor="email">Email</label>
+          <input id="email" name="email" value={form.email} onChange={handleChange} type="email" placeholder="you@example.com" />
           {errors.email && <div className="ls-error">{errors.email}</div>}
 
-          <label>Password</label>
-          <input name="password" value={form.password} onChange={handleChange} type="password" placeholder="At least 6 characters" />
+          <label htmlFor="password">Password</label>
+          <input id="password" name="password" value={form.password} onChange={handleChange} type="password" placeholder="At least 6 characters" />
           {errors.password && <div className="ls-error">{errors.password}</div>}
 
           {mode === "signup" && (
             <>
-              <label>Confirm Password</label>
-              <input name="confirmPassword" value={form.confirmPassword} onChange={handleChange} type="password" placeholder="Re-type password" />
+              <label htmlFor="confirmPassword">Confirm Password</label>
+              <input id="confirmPassword" name="confirmPassword" value={form.confirmPassword} onChange={handleChange} type="password" placeholder="Re-type password" />
               {errors.confirmPassword && <div className="ls-error">{errors.confirmPassword}</div>}
 
               <label>I am</label>
               <div className="ls-role-group">
-                <button type="button" className={`role-pill ${form.role === 'attendee' ? 'active' : ''}`} onClick={() => setForm(prev => ({ ...prev, role: 'attendee' }))}>Attendee</button>
-                <button type="button" className={`role-pill ${form.role === 'organizer' ? 'active' : ''}`} onClick={() => setForm(prev => ({ ...prev, role: 'organizer' }))}>Organizer</button>
+                <button type="button" className={`role-pill ${form.role === "attendee" ? "active" : ""}`} onClick={() => setForm(p => ({ ...p, role: "attendee" }))}>Attendee</button>
+                <button type="button" className={`role-pill ${form.role === "organizer" ? "active" : ""}`} onClick={() => setForm(p => ({ ...p, role: "organizer" }))}>Organizer</button>
               </div>
             </>
           )}
 
-          <div style={{ display: 'flex', gap: '10px', marginTop: '10px' }}>
-            <button className="btn btn-primary" type="submit" disabled={loading}>{loading ? (mode === 'login' ? 'Signing in...' : 'Creating...') : (mode === 'login' ? 'Login' : 'Sign Up')}</button>
-            <button type="button" className="btn btn-ghost" onClick={() => { setMode(prev => prev === 'login' ? 'signup' : 'login'); setMessage(null); }}>
-              {mode === 'login' ? 'Create Account' : 'Have an Account?'}
+          <div style={{ display: "flex", gap: 12, marginTop: 8 }}>
+            <button className="btn btn-primary" type="submit" disabled={loading}>
+              {loading ? (mode === "login" ? "Signing in..." : "Creating...") : (mode === "login" ? "Login" : "Sign Up")}
+            </button>
+            <button
+              type="button"
+              className="btn btn-ghost"
+              onClick={() => {
+                setMode((m) => (m === "login" ? "signup" : "login"));
+                setMessage(null);
+              }}
+            >
+              {mode === "login" ? "Create Account" : "Have an Account?"}
             </button>
           </div>
 
@@ -244,7 +186,7 @@ export default function LoginSignup() {
         </form>
 
         <div className="ls-footer">By continuing, you agree to our Terms & Privacy.</div>
-      </motion.div>
+      </div>
     </div>
   );
 }
