@@ -820,3 +820,234 @@ export function logoutUser() {
 // ✅ 8. Export default axios instance
 export default api;
 
+----------------------------------------------------
+
+// src/Login.js
+import React, { useState } from "react";
+import axios from "axios";
+import { useNavigate } from "react-router-dom";
+
+/**
+ * Single-file Login + Signup component.
+ * - Uses axios directly
+ * - Reads backend base from REACT_APP_API_URL or fallback
+ * - Stores authToken, role, userId in localStorage
+ * - Redirects to /dashboard after successful login
+ */
+
+const API_BASE = (process.env.REACT_APP_API_URL || "http://localhost:5000").replace(/\/$/, "");
+
+const styles = {
+  page: { display: "flex", alignItems: "center", justifyContent: "center", minHeight: "80vh", fontFamily: "Inter, Arial, sans-serif", padding: 20 },
+  card: { width: 420, background: "#fff", padding: 22, borderRadius: 12, boxShadow: "0 14px 40px rgba(10,20,40,0.08)" },
+  title: { margin: "0 0 12px 0", color: "#7a4f3e" },
+  label: { display: "block", marginBottom: 10, fontSize: 14, color: "#333" },
+  input: { width: "100%", padding: 10, marginTop: 6, borderRadius: 8, border: "1px solid #e6e9ef", fontSize: 14, boxSizing: "border-box" },
+  btnPrimary: { width: "100%", padding: 10, marginTop: 14, borderRadius: 8, border: 0, cursor: "pointer", fontWeight: 700, background: "#7a4f3e", color: "#fff" },
+  toggleRow: { display: "flex", gap: 8, marginBottom: 12 },
+  toggleBtn: (active) => ({ flex: 1, padding: 8, cursor: "pointer", borderRadius: 8, border: "1px solid #e6e9ef", background: active ? "#f3efe9" : "transparent", fontWeight: active ? 700 : 500 }),
+  small: { fontSize: 13, color: "#666", marginTop: 8 },
+  alertError: { background: "#fff1f0", color: "#9b1c1c", padding: 10, borderRadius: 8, marginBottom: 12 },
+  alertSuccess: { background: "#f0fdf4", color: "#14532d", padding: 10, borderRadius: 8, marginBottom: 12 },
+};
+
+export default function Login() {
+  const [mode, setMode] = useState("login"); // 'login' | 'signup'
+  const navigate = useNavigate();
+
+  // common states
+  const [loading, setLoading] = useState(false);
+  const [errorMsg, setErrorMsg] = useState("");
+  const [successMsg, setSuccessMsg] = useState("");
+
+  // login fields
+  const [loginEmail, setLoginEmail] = useState("");
+  const [loginPassword, setLoginPassword] = useState("");
+
+  // signup fields
+  const [userName, setUserName] = useState("");
+  const [role, setRole] = useState("User"); // "User" or "Organiser"
+  const [signupEmail, setSignupEmail] = useState("");
+  const [signupPassword, setSignupPassword] = useState("");
+  const [phone, setPhone] = useState("");
+  const [locationStr, setLocationStr] = useState("");
+
+  // helper: show errors
+  function showError(msg) {
+    setErrorMsg(msg);
+    setSuccessMsg("");
+  }
+  function showSuccess(msg) {
+    setSuccessMsg(msg);
+    setErrorMsg("");
+  }
+
+  // LOGIN handler
+  async function handleLogin(e) {
+    e.preventDefault();
+    setErrorMsg("");
+    setSuccessMsg("");
+    if (!loginEmail || !loginEmail.includes("@")) return showError("Enter a valid email");
+    if (!loginPassword) return showError("Enter your password");
+
+    setLoading(true);
+    try {
+      const url = `${API_BASE}/api/Users/login`;
+      const res = await axios.post(url, { Email: loginEmail, Password: loginPassword }, { headers: { "Content-Type": "application/json" } });
+      // Adjust to how your backend returns token/role/userId
+      // common possibilities: { token, role, userId } or { Token, Role, UserId } or { token: "..."}
+      const data = res.data || {};
+      const token = data.token || data.Token || data.tokenString || data?.TokenString;
+      const roleFromServer = data.role || data.Role || data?.roleName;
+      const userId = data.userId || data.UserId || data?.id;
+
+      if (!token) {
+        // Sometimes backend returns object wrapping token: { token: { token: "..." } } - unwrap if necessary
+        // But primarily we require a token to proceed
+        throw new Error("No token returned by server");
+      }
+
+      // store token and user info
+      localStorage.setItem("authToken", token);
+      if (roleFromServer) localStorage.setItem("role", roleFromServer);
+      if (userId) localStorage.setItem("userId", userId);
+
+      showSuccess("Signed in successfully");
+      // short delay to show message
+      setTimeout(() => navigate("/dashboard"), 600);
+    } catch (err) {
+      console.error("Login error", err);
+      // Axios error object: err.response?.data or err.message
+      const msg = err?.response?.data?.message || err?.response?.data?.error || err.message || "Login failed";
+      showError(String(msg));
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  // SIGNUP handler
+  async function handleSignup(e) {
+    e.preventDefault();
+    setErrorMsg("");
+    setSuccessMsg("");
+
+    if (!userName.trim()) return showError("Enter full name");
+    if (!signupEmail.includes("@")) return showError("Enter a valid email");
+    if (!signupPassword || signupPassword.length < 6) return showError("Password must be at least 6 characters");
+
+    const phoneDigits = (phone || "").replace(/\D/g, "");
+    if (phoneDigits && phoneDigits.length !== 10) return showError("Phone must be 10 digits or left blank");
+
+    setLoading(true);
+    try {
+      const url = `${API_BASE}/api/Users/register`;
+      const payload = {
+        UserName: userName,
+        Role: role,
+        Email: signupEmail,
+        Password: signupPassword,
+        PhoneNumber: phoneDigits ? Number(phoneDigits) : 0,
+        Location: locationStr || "",
+      };
+
+      const res = await axios.post(url, payload, { headers: { "Content-Type": "application/json" } });
+      // typical successful response could be { message: "User registered" } or 201 Created
+      const message = res?.data?.message || "Account created. Please log in.";
+      showSuccess(message);
+      // switch to login after a short delay
+      setTimeout(() => setMode("login"), 900);
+    } catch (err) {
+      console.error("Signup error", err);
+      const msg = err?.response?.data?.message || err?.response?.data?.error || err.message || "Signup failed";
+      showError(String(msg));
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <div style={styles.page}>
+      <div style={styles.card}>
+        <div style={styles.toggleRow}>
+          <button style={styles.toggleBtn(mode === "login")} onClick={() => { setMode("login"); setErrorMsg(""); setSuccessMsg(""); }}>
+            Login
+          </button>
+          <button style={styles.toggleBtn(mode === "signup")} onClick={() => { setMode("signup"); setErrorMsg(""); setSuccessMsg(""); }}>
+            Signup
+          </button>
+        </div>
+
+        <h2 style={styles.title}>{mode === "login" ? "Sign in to Simba Events" : "Create your Simba account"}</h2>
+
+        {errorMsg && <div style={styles.alertError}>{errorMsg}</div>}
+        {successMsg && <div style={styles.alertSuccess}>{successMsg}</div>}
+
+        {mode === "login" ? (
+          <form onSubmit={handleLogin}>
+            <label style={styles.label}>
+              Email
+              <input style={styles.input} type="email" value={loginEmail} onChange={(e) => setLoginEmail(e.target.value)} placeholder="you@domain.com" />
+            </label>
+
+            <label style={styles.label}>
+              Password
+              <input style={styles.input} type="password" value={loginPassword} onChange={(e) => setLoginPassword(e.target.value)} placeholder="Your password" />
+            </label>
+
+            <button style={styles.btnPrimary} type="submit" disabled={loading}>
+              {loading ? "Signing in..." : "Sign in"}
+            </button>
+            <div style={styles.small}>
+              Don't have an account? <button type="button" onClick={() => setMode("signup")} style={{ color: "#7a4f3e", background: "none", border: "none", cursor: "pointer", fontWeight: 700 }}>Create one</button>
+            </div>
+          </form>
+        ) : (
+          <form onSubmit={handleSignup}>
+            <label style={styles.label}>
+              Full name
+              <input style={styles.input} value={userName} onChange={(e) => setUserName(e.target.value)} placeholder="First Last" />
+            </label>
+
+            <label style={styles.label}>
+              Role
+              <select style={{ ...styles.input, padding: 10 }} value={role} onChange={(e) => setRole(e.target.value)}>
+                <option value="User">User</option>
+                <option value="Organiser">Organiser</option>
+              </select>
+            </label>
+
+            <label style={styles.label}>
+              Email
+              <input style={styles.input} type="email" value={signupEmail} onChange={(e) => setSignupEmail(e.target.value)} placeholder="you@domain.com" />
+            </label>
+
+            <label style={styles.label}>
+              Password
+              <input style={styles.input} type="password" value={signupPassword} onChange={(e) => setSignupPassword(e.target.value)} placeholder="Create a password" />
+            </label>
+
+            <label style={styles.label}>
+              Phone (optional)
+              <input style={styles.input} type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="9876543210" />
+            </label>
+
+            <label style={styles.label}>
+              Location (optional)
+              <input style={styles.input} value={locationStr} onChange={(e) => setLocationStr(e.target.value)} placeholder="City, State" />
+            </label>
+
+            <button style={styles.btnPrimary} type="submit" disabled={loading}>
+              {loading ? "Creating..." : "Create account"}
+            </button>
+
+            <div style={styles.small}>
+              Already have an account? <button type="button" onClick={() => setMode("login")} style={{ color: "#7a4f3e", background: "none", border: "none", cursor: "pointer", fontWeight: 700 }}>Sign in</button>
+            </div>
+          </form>
+        )}
+      </div>
+    </div>
+  );
+}
+
+
