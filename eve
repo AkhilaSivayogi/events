@@ -718,3 +718,35 @@ textarea {
   font-size: 15px;
 }
 ----------------------------------------------------
+// src/App.jsx
+import React from "react";
+import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import LandingPage from "./LandingPage";
+import SimbaAuth from "./SimbaAuth";
+import Dashboard from "./Dashboard";
+import { getToken } from "./api";
+
+function RequireAuth({ children }) {
+  const token = getToken();
+  return token ? children : <Navigate to="/auth?mode=login" replace />;
+}
+
+export default function App() {
+  return (
+    <BrowserRouter>
+      <Routes>
+        <Route path="/" element={<LandingPage />} />
+        <Route path="/auth" element={<SimbaAuth />} />
+        <Route
+          path="/dashboard"
+          element={
+            <RequireAuth>
+              <Dashboard />
+            </RequireAuth>
+          }
+        />
+        <Route path="*" element={<Navigate to="/" replace />} />
+      </Routes>
+    </BrowserRouter>
+  );
+}
