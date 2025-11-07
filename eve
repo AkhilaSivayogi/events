@@ -190,3 +190,97 @@ export default function LoginSignup() {
     </div>
   );
 }
+--------------------------------------------------------------------------------
+
+import React, { useState } from 'react';
+import axios from 'axios';
+import { useNavigate } from 'react-router-dom';
+
+const Signup = () => {
+  const [userName, setUserName] = useState("");
+  const [role, setRole] = useState("User");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [phoneNumber, setPhoneNumber] = useState("");
+  const [location, setLocation] = useState("");
+
+  const navigate = useNavigate();
+
+  const handleSignup = async (e) => {
+    e.preventDefault();
+
+    try {
+      // Send signup request to your backend API
+      const response = await axios.post(
+        "https://localhost:7283/api/Users/register",
+        {
+          userName,
+          role,
+          email,
+          password,
+          phoneNumber,
+          location,
+        }
+      );
+
+      alert("Signup successful! You can now login.");
+      console.log("Signup success:", response.data);
+
+      // Redirect user to login page after signup
+      navigate("/login");
+    } catch (err) {
+      console.error("Signup failed:", err);
+      alert("Signup failed. Please check your details or try again later.");
+    }
+  };
+
+  return (
+    <form onSubmit={handleSignup} style={{ margin: '50px' }}>
+      <h2>Signup</h2>
+
+      <input
+        value={userName}
+        onChange={(e) => setUserName(e.target.value)}
+        placeholder="Full Name"
+        required
+      />
+
+      <select value={role} onChange={(e) => setRole(e.target.value)}>
+        <option value="User">User</option>
+        <option value="Organiser">Organiser</option>
+      </select>
+
+      <input
+        value={email}
+        onChange={(e) => setEmail(e.target.value)}
+        placeholder="Email"
+        type="email"
+        required
+      />
+
+      <input
+        value={password}
+        onChange={(e) => setPassword(e.target.value)}
+        placeholder="Password"
+        type="password"
+        required
+      />
+
+      <input
+        value={phoneNumber}
+        onChange={(e) => setPhoneNumber(e.target.value)}
+        placeholder="Phone Number"
+      />
+
+      <input
+        value={location}
+        onChange={(e) => setLocation(e.target.value)}
+        placeholder="Location"
+      />
+
+      <button type="submit">Signup</button>
+    </form>
+  );
+};
+
+export default Signup;
