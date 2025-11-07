@@ -1,1053 +1,250 @@
-// src/api.js
-import axios from "axios";
-
-const API = axios.create({
-  baseURL: process.env.REACT_APP_API_URL || "http://localhost:5000",
-  headers: { "Content-Type": "application/json" },
-});
-
-// token storage key
-const TOKEN_KEY = "simba_token";
-
-export const saveToken = (token) => localStorage.setItem(TOKEN_KEY, token);
-export const getToken = () => localStorage.getItem(TOKEN_KEY);
-export const removeToken = () => localStorage.removeItem(TOKEN_KEY);
-
-// attach token automatically if present
-API.interceptors.request.use((config) => {
-  const token = getToken();
-  if (token) config.headers.Authorization = `Bearer ${token}`;
-  return config;
-});
-
-// unified error handling
-function handleError(err) {
-  if (err.response?.data?.message) throw new Error(err.response.data.message);
-  if (err.response?.data?.error) throw new Error(err.response.data.error);
-  if (err.message) throw new Error(err.message);
-  throw new Error("Unexpected error");
-}
-
-export async function post(path, body) {
-  try {
-    const res = await API.post(path, body);
-    return res.data;
-  } catch (err) {
-    handleError(err);
-  }
-}
-
-export async function get(path) {
-  try {
-    const res = await API.get(path);
-    return res.data;
-  } catch (err) {
-    handleError(err);
-  }
-}
-
-export default API;
-----------------------------------------------------------
-// src/LandingPage.jsx
-import React from "react";
-import { useNavigate } from "react-router-dom";
-import "./landing.css";
-
-export default function LandingPage() {
-  const nav = useNavigate();
-
-  return (
-    <div className="landing-root">
-      <header className="hero">
-        <div className="hero-inner">
-          <h1 className="title">Simba Events</h1>
-          <p className="tagline">Manage events, attendees and schedules — all in one place.</p>
-
-          <div className="cta-row">
-            <button className="btn btn-primary" onClick={() => nav("/auth?mode=login")}>
-              Login
-            </button>
-            <button className="btn btn-accent" onClick={() => nav("/auth?mode=signup")}>
-              Sign up
-            </button>
-          </div>
-
-          <p className="small-note">Create or join events quickly — secure sign-in.</p>
-        </div>
-
-        <div className="hero-visual">
-          <div className="hero-card">
-            <div className="hero-pill" />
-            <h3>Events made simple</h3>
-            <p className="muted">Create schedules, manage attendees, track tickets.</p>
-          </div>
-        </div>
-      </header>
-    </div>
-  );
-}
----------------------------------------------------------------------------------------
-// src/SimbaAuth.jsx
-import React, { useEffect, useState } from "react";
-import { useLocation, useNavigate } from "react-router-dom";
-import { post, saveToken } from "./api";
-import "./main.css";
-
-export default function SimbaAuth() {
-  const location = useLocation();
-  const navigate = useNavigate();
-  const [mode, setMode] = useState("login");
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
-  const [message, setMessage] = useState("");
-
-  useEffect(() => {
-    const params = new URLSearchParams(location.search);
-    setMode(params.get("mode") === "signup" ? "signup" : "login");
-  }, [location.search]);
-
-  // login fields
-  const [loginEmail, setLoginEmail] = useState("");
-  const [loginPassword, setLoginPassword] = useState("");
-
-  // signup fields
-  const [userName, setUserName] = useState("");
-  const [role, setRole] = useState("User");
-  const [signupEmail, setSignupEmail] = useState("");
-  const [signupPassword, setSignupPassword] = useState("");
-  const [phone, setPhone] = useState("");
-  const [locationStr, setLocationStr] = useState("");
-
-  const handleSignup = async (e) => {
-    e.preventDefault();
-    setError("");
-    setMessage("");
-    setLoading(true);
-
-    const phoneDigits = phone.replace(/\D/g, "");
-    const payload = {
-      UserName: userName,
-      Email: signupEmail,
-      Password: signupPassword,
-      Role: role,
-      PhoneNumber: phoneDigits ? Number(phoneDigits) : 0,
-      Location: locationStr,
-    };
-
-    try {
-      const data = await post("/api/Users/register", payload);
-      setMessage(data.message || "Registration successful. Please login.");
-      setTimeout(() => navigate("/auth?mode=login"), 1000);
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleLogin = async (e) => {
-    e.preventDefault();
-    setError("");
-    setMessage("");
-    setLoading(true);
-    try {
-      const data = await post("/api/Users/login", { Email: loginEmail, Password: loginPassword });
-      const token = data?.Token || data?.token;
-      if (!token) throw new Error("No token received");
-      saveToken(token);
-      setMessage("Login successful!");
-      setTimeout(() => navigate("/dashboard"), 500);
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  return (
-    <div className="simba-root">
-      <aside className="brand-panel">
-        <div>
-          <h1>Simba Events</h1>
-          <p>Manage events, attendees and schedules — all in one place.</p>
-        </div>
-        <div className="mode-toggle">
-          <button
-            className={mode === "login" ? "active" : ""}
-            onClick={() => navigate("/auth?mode=login")}
-          >
-            Login
-          </button>
-          <button
-            className={mode === "signup" ? "active" : ""}
-            onClick={() => navigate("/auth?mode=signup")}
-          >
-            Signup
-          </button>
-        </div>
-      </aside>
-
-      <main className="card">
-        <div className="card-inner">
-          <h2>{mode === "login" ? "Welcome back" : "Create account"}</h2>
-          {error && <div className="alert error">{error}</div>}
-          {message && <div className="alert success">{message}</div>}
-
-          {mode === "login" ? (
-            <form onSubmit={handleLogin} className="form">
-              <label>
-                <span>Email</span>
-                <input type="email" value={loginEmail} onChange={(e) => setLoginEmail(e.target.value)} required />
-              </label>
-              <label>
-                <span>Password</span>
-                <input type="password" value={loginPassword} onChange={(e) => setLoginPassword(e.target.value)} required />
-              </label>
-              <button className="primary" type="submit" disabled={loading}>
-                {loading ? "Signing in..." : "Sign in"}
-              </button>
-            </form>
-          ) : (
-            <form onSubmit={handleSignup} className="form">
-              <label>
-                <span>Full name</span>
-                <input type="text" value={userName} onChange={(e) => setUserName(e.target.value)} required />
-              </label>
-              <label>
-                <span>Role</span>
-                <select value={role} onChange={(e) => setRole(e.target.value)} required>
-                  <option value="User">User</option>
-                  <option value="Organiser">Organiser</option>
-                </select>
-              </label>
-              <label>
-                <span>Email</span>
-                <input type="email" value={signupEmail} onChange={(e) => setSignupEmail(e.target.value)} required />
-              </label>
-              <label>
-                <span>Password</span>
-                <input type="password" value={signupPassword} onChange={(e) => setSignupPassword(e.target.value)} required />
-              </label>
-              <label>
-                <span>Phone</span>
-                <input type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} />
-              </label>
-              <label>
-                <span>Location</span>
-                <input type="text" value={locationStr} onChange={(e) => setLocationStr(e.target.value)} />
-              </label>
-              <button className="primary" type="submit" disabled={loading}>
-                {loading ? "Creating..." : "Create account"}
-              </button>
-            </form>
-          )}
-        </div>
-      </main>
-    </div>
-  );
-}
---------------------------------------------------------------------------
-// src/Dashboard.jsx
-import React from "react";
-import { getToken, removeToken } from "./api";
-import { useNavigate } from "react-router-dom";
-import "./dashboard.css";
-
-function parseJwt(token) {
-  try {
-    const base64 = token.split(".")[1];
-    return JSON.parse(atob(base64));
-  } catch {
-    return {};
-  }
-}
-
-export default function Dashboard() {
-  const nav = useNavigate();
-  const token = getToken();
-  const claims = token ? parseJwt(token) : {};
-  const name = claims?.name || claims?.unique_name || "";
-  const email = claims?.email || claims?.sub || "";
-  const role = claims?.role || "";
-
-  const logout = () => {
-    removeToken();
-    nav("/");
-  };
-
-  return (
-    <div className="dash-root">
-      <header className="dash-header">
-        <h2>Dashboard</h2>
-        <button className="btn-logout" onClick={logout}>
-          Logout
-        </button>
-      </header>
-
-      <section className="dash-content">
-        <h3>Welcome, {name || email}</h3>
-        <p><b>Role:</b> {role}</p>
-        <p><b>Email:</b> {email}</p>
-      </section>
-    </div>
-  );
-}
------------------------------------------------------------------------------------
-/* src/landing.css */
-:root {
-  --primary: #7A4F3E;
-  --accent: #FFA726;
-  --green: #4DB16A;
-  --burg: #88024F;
-  --soft: #F5F5BC;
-  --text: #2F2F2F;
-  --muted: #6b7280;
-  --bg: #ffffff;
-}
-
-* {
-  box-sizing: border-box;
-}
-
-body {
-  margin: 0;
-  font-family: "Inter", system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
-  background: var(--bg);
-  color: var(--text);
-}
-
-.landing-root {
-  max-width: 1100px;
-  margin: 36px auto;
-  padding: 18px;
-}
-
-.hero {
-  display: flex;
-  gap: 28px;
-  align-items: center;
-  padding: 40px;
-  border-radius: 16px;
-  background: linear-gradient(180deg, var(--soft), #ffffff);
-  box-shadow: 0 6px 20px rgba(15, 15, 15, 0.08);
-}
-
-.hero-inner {
-  flex: 1;
-  min-width: 320px;
-}
-
-.title {
-  font-size: 42px;
-  font-weight: 700;
-  margin: 0;
-  color: var(--primary);
-}
-
-.tagline {
-  margin: 10px 0 20px 0;
-  color: var(--text);
-  opacity: 0.9;
-  font-size: 17px;
-  line-height: 1.4;
-}
-
-.cta-row {
-  display: flex;
-  gap: 12px;
-  margin-bottom: 14px;
-}
-
-.btn {
-  padding: 12px 20px;
-  border-radius: 10px;
-  border: none;
-  font-weight: 600;
-  cursor: pointer;
-  font-size: 15px;
-  transition: 0.25s;
-}
-
-.btn-primary {
-  background: var(--primary);
-  color: white;
-}
-
-.btn-primary:hover {
-  background: #623c2f;
-}
-
-.btn-accent {
-  background: var(--accent);
-  color: #2b2b2b;
-}
-
-.btn-accent:hover {
-  background: #ffb94d;
-}
-
-.small-note {
-  font-size: 13px;
-  color: var(--muted);
-}
-
-.hero-visual {
-  width: 240px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.hero-card {
-  background: white;
-  border-radius: 12px;
-  padding: 16px;
-  width: 230px;
-  box-shadow: 0 8px 24px rgba(12, 12, 12, 0.08);
-  border-left: 6px solid var(--green);
-}
-
-.hero-pill {
-  height: 6px;
-  width: 60px;
-  background: var(--burg);
-  border-radius: 6px;
-  margin-bottom: 12px;
-}
-
-.hero-card h3 {
-  margin: 0 0 6px 0;
-  color: var(--primary);
-}
-
-.hero-card p {
-  margin: 0;
-  color: var(--muted);
-  font-size: 13px;
-}
-
-.features {
-  display: flex;
-  gap: 18px;
-  margin-top: 30px;
-}
-
-.feature {
-  flex: 1;
-  background: #fff;
-  border-radius: 12px;
-  padding: 16px;
-  box-shadow: 0 6px 15px rgba(2, 6, 23, 0.05);
-  transition: 0.3s;
-  border: 1px solid rgba(16, 24, 40, 0.05);
-}
-
-.feature:hover {
-  transform: translateY(-4px);
-}
-
-.feature h3 {
-  margin: 0 0 8px 0;
-  color: var(--primary);
-}
-
-.feature p {
-  margin: 0;
-  color: var(--muted);
-  font-size: 14px;
-}
-
-@media (max-width: 860px) {
-  .hero {
-    flex-direction: column;
-    align-items: flex-start;
-  }
-
-  .features {
-    flex-direction: column;
-  }
-
-  .hero-visual {
-    width: 100%;
-  }
-}
----------------------------------------------------------------
-/* src/main.css */
-:root {
-  --primary: #7A4F3E;
-  --accent: #FFA726;
-  --text: #2F2F2F;
-  --muted: #6b7280;
-  --danger: #ef4444;
-  --bg: #ffffff;
-}
-
-body {
-  background: var(--bg);
-  color: var(--text);
-  font-family: "Inter", system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
-}
-
-.simba-root {
-  display: flex;
-  max-width: 980px;
-  margin: 50px auto;
-  border-radius: 14px;
-  overflow: hidden;
-  box-shadow: 0 10px 30px rgba(2, 6, 23, 0.1);
-}
-
-/* Left panel */
-.brand-panel {
-  flex: 1;
-  padding: 40px;
-  background: linear-gradient(180deg, #0ea5e9, #0369a1);
-  color: white;
-  display: flex;
-  flex-direction: column;
-  justify-content: space-between;
-}
-
-.brand-panel h1 {
-  font-size: 30px;
-  margin: 0;
-}
-
-.brand-panel p {
-  margin: 8px 0;
-  opacity: 0.95;
-}
-
-.mode-toggle {
-  margin-top: 18px;
-  background: rgba(255, 255, 255, 0.12);
-  padding: 6px;
-  border-radius: 999px;
-  display: inline-flex;
-}
-
-.mode-toggle button {
-  background: transparent;
-  border: 0;
-  color: rgba(255, 255, 255, 0.9);
-  padding: 8px 14px;
-  border-radius: 999px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: 0.25s;
-}
-
-.mode-toggle button.active {
-  background: white;
-  color: #0369a1;
-}
-
-/* Right panel */
-.card {
-  flex: 1;
-  padding: 40px;
-  background: #fff;
-}
-
-.card-inner {
-  max-width: 460px;
-  margin: 0 auto;
-}
-
-.header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 12px;
-}
-
-.header h2 {
-  margin: 0;
-  font-weight: 600;
-}
-
-.switch .small {
-  border: 0;
-  background: none;
-  cursor: pointer;
-  padding: 6px 8px;
-  border-radius: 6px;
-}
-
-.switch .small.active {
-  background: #e6f2fb;
-}
-
-/* Forms */
-.form {
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
-}
-
-label {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  font-size: 14px;
-}
-
-input[type="text"],
-input[type="email"],
-input[type="password"],
-input[type="tel"],
-select,
-textarea {
-  padding: 10px;
-  border-radius: 8px;
-  border: 1px solid #e6e9ef;
-  font-size: 14px;
-}
-
-.primary {
-  background: var(--primary);
-  color: white;
-  border: 0;
-  padding: 10px 12px;
-  border-radius: 8px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: 0.3s;
-}
-
-.primary:hover {
-  background: #5d372a;
-}
-
-.link {
-  background: none;
-  border: 0;
-  color: var(--accent);
-  cursor: pointer;
-  padding: 0;
-  font-size: 14px;
-}
-
-.alert {
-  padding: 10px;
-  border-radius: 8px;
-  margin-bottom: 8px;
-}
-
-.alert.error {
-  background: #fff1f0;
-  color: #9b1c1c;
-  border: 1px solid rgba(239, 68, 68, 0.12);
-}
-
-.alert.success {
-  background: #f0fdf4;
-  color: #14532d;
-  border: 1px solid rgba(16, 185, 129, 0.08);
-}
-
-.muted {
-  font-size: 13px;
-  color: var(--muted);
-  text-align: center;
-}
-
-@media (max-width: 820px) {
-  .simba-root {
-    flex-direction: column;
-    margin: 20px;
-  }
-
-  .brand-panel {
-    flex-direction: row;
-    align-items: center;
-    justify-content: space-between;
-    padding: 20px;
-  }
-
-  .card {
-    padding: 20px;
-  }
-}
-------------------------------------------------------------------------------
-/* src/dashboard.css */
-.dash-root {
-  max-width: 900px;
-  margin: 50px auto;
-  padding: 20px;
-  font-family: "Inter", system-ui, -apple-system, "Segoe UI", Roboto, Arial;
-}
-
-.dash-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 18px;
-}
-
-.btn-logout {
-  background: #ef4444;
-  color: white;
-  padding: 8px 14px;
-  border-radius: 8px;
-  border: none;
-  cursor: pointer;
-  font-weight: 600;
-  transition: 0.3s;
-}
-
-.btn-logout:hover {
-  background: #dc2626;
-}
-
-.dash-content {
-  background: white;
-  padding: 24px;
-  border-radius: 12px;
-  box-shadow: 0 8px 30px rgba(2, 6, 23, 0.05);
-}
-
-.profile-card h3 {
-  margin: 0 0 10px 0;
-  color: var(--primary);
-}
-
-.profile-card p {
-  margin: 6px 0;
-  color: #374151;
-  font-size: 15px;
-}
-----------------------------------------------------
-// src/App.jsx
-import React from "react";
-import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
-import LandingPage from "./LandingPage";
-import SimbaAuth from "./SimbaAuth";
-import Dashboard from "./Dashboard";
-import { getToken } from "./api";
-
-function RequireAuth({ children }) {
-  const token = getToken();
-  return token ? children : <Navigate to="/auth?mode=login" replace />;
-}
-
-export default function App() {
-  return (
-    <BrowserRouter>
-      <Routes>
-        <Route path="/" element={<LandingPage />} />
-        <Route path="/auth" element={<SimbaAuth />} />
-        <Route
-          path="/dashboard"
-          element={
-            <RequireAuth>
-              <Dashboard />
-            </RequireAuth>
-          }
-        />
-        <Route path="*" element={<Navigate to="/" replace />} />
-      </Routes>
-    </BrowserRouter>
-  );
-}
--------------------------------------
-// src/api.js
-import axios from "axios";
-
-// ✅ 1. Base URL — set via .env or fallback
-const API_BASE = process.env.REACT_APP_API_URL || "https://localhost:7283/api";
-
-// ✅ 2. Create axios instance
-const api = axios.create({
-  baseURL: API_BASE,
-  headers: {
-    "Content-Type": "application/json",
-  },
-});
-
-// ✅ 3. Automatically attach token to requests
-api.interceptors.request.use(
-  (config) => {
-    const token = localStorage.getItem("token");
-    if (token) {
-      config.headers.Authorization = `Bearer ${token}`;
-    }
-    return config;
-  },
-  (error) => Promise.reject(error)
-);
-
-// ✅ 4. LOGIN request
-export async function loginUser(email, password) {
-  try {
-    const res = await api.post("/Users/login", { email, password });
-    const token = res.data.token || res.data; // depends on backend return
-    if (token) localStorage.setItem("token", token);
-    return res.data;
-  } catch (err) {
-    console.error("Login error:", err);
-    throw err.response?.data || { message: "Login failed" };
-  }
-}
-
-// ✅ 5. SIGNUP request
-export async function signupUser(userData) {
-  try {
-    const res = await api.post("/Users/register", userData);
-    return res.data;
-  } catch (err) {
-    console.error("Signup error:", err);
-    throw err.response?.data || { message: "Signup failed" };
-  }
-}
-
-// ✅ 6. Get logged-in user profile (optional)
-export async function getProfile() {
-  try {
-    const res = await api.get("/Users/me");
-    return res.data;
-  } catch (err) {
-    console.error("Profile fetch error:", err);
-    throw err.response?.data || { message: "Failed to fetch profile" };
-  }
-}
-
-// ✅ 7. Logout
-export function logoutUser() {
-  localStorage.removeItem("token");
-}
-
-// ✅ 8. Export default axios instance
-export default api;
-
-----------------------------------------------------
-
-// src/Login.js
 import React, { useState } from "react";
 import axios from "axios";
-import { useNavigate } from "react-router-dom";
+import { motion } from "framer-motion";
 
-/**
- * Single-file Login + Signup component.
- * - Uses axios directly
- * - Reads backend base from REACT_APP_API_URL or fallback
- * - Stores authToken, role, userId in localStorage
- * - Redirects to /dashboard after successful login
- */
+// SIMBA Events Login + Signup Page using brand color palette
+// Colors:
+// Primary: #7A4F3E
+// Accent: #FFA726
+// Secondary 1: #4DB16C
+// Secondary 2: #88024F
+// Background: #F5F5BC
+// Grey: #3E3E3E
 
-const API_BASE = (process.env.REACT_APP_API_URL || "http://localhost:5000").replace(/\/$/, "");
-
-const styles = {
-  page: { display: "flex", alignItems: "center", justifyContent: "center", minHeight: "80vh", fontFamily: "Inter, Arial, sans-serif", padding: 20 },
-  card: { width: 420, background: "#fff", padding: 22, borderRadius: 12, boxShadow: "0 14px 40px rgba(10,20,40,0.08)" },
-  title: { margin: "0 0 12px 0", color: "#7a4f3e" },
-  label: { display: "block", marginBottom: 10, fontSize: 14, color: "#333" },
-  input: { width: "100%", padding: 10, marginTop: 6, borderRadius: 8, border: "1px solid #e6e9ef", fontSize: 14, boxSizing: "border-box" },
-  btnPrimary: { width: "100%", padding: 10, marginTop: 14, borderRadius: 8, border: 0, cursor: "pointer", fontWeight: 700, background: "#7a4f3e", color: "#fff" },
-  toggleRow: { display: "flex", gap: 8, marginBottom: 12 },
-  toggleBtn: (active) => ({ flex: 1, padding: 8, cursor: "pointer", borderRadius: 8, border: "1px solid #e6e9ef", background: active ? "#f3efe9" : "transparent", fontWeight: active ? 700 : 500 }),
-  small: { fontSize: 13, color: "#666", marginTop: 8 },
-  alertError: { background: "#fff1f0", color: "#9b1c1c", padding: 10, borderRadius: 8, marginBottom: 12 },
-  alertSuccess: { background: "#f0fdf4", color: "#14532d", padding: 10, borderRadius: 8, marginBottom: 12 },
-};
-
-export default function Login() {
-  const [mode, setMode] = useState("login"); // 'login' | 'signup'
-  const navigate = useNavigate();
-
-  // common states
+export default function LoginSignup() {
+  const [mode, setMode] = useState("login");
   const [loading, setLoading] = useState(false);
-  const [errorMsg, setErrorMsg] = useState("");
-  const [successMsg, setSuccessMsg] = useState("");
+  const [form, setForm] = useState({
+    name: "",
+    email: "",
+    password: "",
+    confirmPassword: "",
+    role: "attendee",
+  });
+  const [errors, setErrors] = useState({});
+  const [message, setMessage] = useState(null);
 
-  // login fields
-  const [loginEmail, setLoginEmail] = useState("");
-  const [loginPassword, setLoginPassword] = useState("");
-
-  // signup fields
-  const [userName, setUserName] = useState("");
-  const [role, setRole] = useState("User"); // "User" or "Organiser"
-  const [signupEmail, setSignupEmail] = useState("");
-  const [signupPassword, setSignupPassword] = useState("");
-  const [phone, setPhone] = useState("");
-  const [locationStr, setLocationStr] = useState("");
-
-  // helper: show errors
-  function showError(msg) {
-    setErrorMsg(msg);
-    setSuccessMsg("");
-  }
-  function showSuccess(msg) {
-    setSuccessMsg(msg);
-    setErrorMsg("");
+  function validate() {
+    const e = {};
+    if (!form.email || !/^\S+@\S+\.\S+$/.test(form.email)) e.email = "Enter a valid email";
+    if (!form.password || form.password.length < 6) e.password = "Password must be ≥ 6 chars";
+    if (mode === "signup") {
+      if (!form.name || form.name.trim().length < 2) e.name = "Enter your name";
+      if (form.password !== form.confirmPassword) e.confirmPassword = "Passwords do not match";
+    }
+    return e;
   }
 
-  // LOGIN handler
-  async function handleLogin(e) {
-    e.preventDefault();
-    setErrorMsg("");
-    setSuccessMsg("");
-    if (!loginEmail || !loginEmail.includes("@")) return showError("Enter a valid email");
-    if (!loginPassword) return showError("Enter your password");
+  const handleChange = (e) => {
+    setForm(prev => ({ ...prev, [e.target.name]: e.target.value }));
+    setErrors(prev => ({ ...prev, [e.target.name]: null }));
+    setMessage(null);
+  };
+
+  const handleSubmit = async (ev) => {
+    ev.preventDefault();
+    const e = validate();
+    setErrors(e);
+    if (Object.keys(e).length) return;
 
     setLoading(true);
-    try {
-      const url = `${API_BASE}/api/Users/login`;
-      const res = await axios.post(url, { Email: loginEmail, Password: loginPassword }, { headers: { "Content-Type": "application/json" } });
-      // Adjust to how your backend returns token/role/userId
-      // common possibilities: { token, role, userId } or { Token, Role, UserId } or { token: "..."}
-      const data = res.data || {};
-      const token = data.token || data.Token || data.tokenString || data?.TokenString;
-      const roleFromServer = data.role || data.Role || data?.roleName;
-      const userId = data.userId || data.UserId || data?.id;
+    setMessage(null);
 
-      if (!token) {
-        // Sometimes backend returns object wrapping token: { token: { token: "..." } } - unwrap if necessary
-        // But primarily we require a token to proceed
-        throw new Error("No token returned by server");
+    try {
+      if (mode === "login") {
+        const res = await axios.post("/api/auth/login", {
+          email: form.email,
+          password: form.password,
+        });
+        setMessage("Login successful. Redirecting...");
+      } else {
+        const res = await axios.post("/api/auth/signup", {
+          name: form.name,
+          email: form.email,
+          password: form.password,
+          role: form.role,
+        });
+        setMessage("Signup successful. You can now login.");
+        setMode("login");
+        setForm(prev => ({ ...prev, password: "", confirmPassword: "" }));
       }
-
-      // store token and user info
-      localStorage.setItem("authToken", token);
-      if (roleFromServer) localStorage.setItem("role", roleFromServer);
-      if (userId) localStorage.setItem("userId", userId);
-
-      showSuccess("Signed in successfully");
-      // short delay to show message
-      setTimeout(() => navigate("/dashboard"), 600);
     } catch (err) {
-      console.error("Login error", err);
-      // Axios error object: err.response?.data or err.message
-      const msg = err?.response?.data?.message || err?.response?.data?.error || err.message || "Login failed";
-      showError(String(msg));
+      console.error(err);
+      const msg = err?.response?.data?.message || "Server error. Try again.";
+      setMessage(msg);
     } finally {
       setLoading(false);
     }
-  }
-
-  // SIGNUP handler
-  async function handleSignup(e) {
-    e.preventDefault();
-    setErrorMsg("");
-    setSuccessMsg("");
-
-    if (!userName.trim()) return showError("Enter full name");
-    if (!signupEmail.includes("@")) return showError("Enter a valid email");
-    if (!signupPassword || signupPassword.length < 6) return showError("Password must be at least 6 characters");
-
-    const phoneDigits = (phone || "").replace(/\D/g, "");
-    if (phoneDigits && phoneDigits.length !== 10) return showError("Phone must be 10 digits or left blank");
-
-    setLoading(true);
-    try {
-      const url = `${API_BASE}/api/Users/register`;
-      const payload = {
-        UserName: userName,
-        Role: role,
-        Email: signupEmail,
-        Password: signupPassword,
-        PhoneNumber: phoneDigits ? Number(phoneDigits) : 0,
-        Location: locationStr || "",
-      };
-
-      const res = await axios.post(url, payload, { headers: { "Content-Type": "application/json" } });
-      // typical successful response could be { message: "User registered" } or 201 Created
-      const message = res?.data?.message || "Account created. Please log in.";
-      showSuccess(message);
-      // switch to login after a short delay
-      setTimeout(() => setMode("login"), 900);
-    } catch (err) {
-      console.error("Signup error", err);
-      const msg = err?.response?.data?.message || err?.response?.data?.error || err.message || "Signup failed";
-      showError(String(msg));
-    } finally {
-      setLoading(false);
-    }
-  }
+  };
 
   return (
-    <div style={styles.page}>
-      <div style={styles.card}>
-        <div style={styles.toggleRow}>
-          <button style={styles.toggleBtn(mode === "login")} onClick={() => { setMode("login"); setErrorMsg(""); setSuccessMsg(""); }}>
-            Login
-          </button>
-          <button style={styles.toggleBtn(mode === "signup")} onClick={() => { setMode("signup"); setErrorMsg(""); setSuccessMsg(""); }}>
-            Signup
-          </button>
+    <div className="ls-root">
+      <style>{`
+        .ls-root {
+          min-height: 100vh;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          background: #F5F5BC;
+          font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+          padding: 24px;
+        }
+        .ls-card {
+          background: #fff;
+          width: 100%;
+          max-width: 420px;
+          border-radius: 16px;
+          box-shadow: 0 8px 20px rgba(0,0,0,0.1);
+          padding: 24px;
+        }
+        .ls-header {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          margin-bottom: 16px;
+        }
+        .ls-title {
+          font-size: 22px;
+          color: #7A4F3E;
+          margin: 0;
+          font-weight: 700;
+        }
+        .ls-sub {
+          font-size: 13px;
+          color: #3E3E3E;
+          margin: 4px 0 0 0;
+        }
+        .ls-brand {
+          font-size: 13px;
+          color: #88024F;
+          font-weight: bold;
+        }
+        label {
+          font-size: 13px;
+          color: #3E3E3E;
+          display: block;
+          margin-bottom: 4px;
+        }
+        input {
+          width: 100%;
+          padding: 10px;
+          border: 1px solid #ddd;
+          border-radius: 8px;
+          font-size: 14px;
+          box-sizing: border-box;
+          margin-bottom: 8px;
+        }
+        input:focus {
+          outline: none;
+          border-color: #4DB16C;
+          box-shadow: 0 0 0 2px rgba(77,177,108,0.3);
+        }
+        .btn {
+          padding: 10px 14px;
+          border: none;
+          border-radius: 8px;
+          cursor: pointer;
+          font-size: 14px;
+          font-weight: bold;
+        }
+        .btn-primary {
+          background: #7A4F3E;
+          color: #fff;
+          transition: background 0.3s;
+        }
+        .btn-primary:hover { background: #6a4436; }
+        .btn-ghost {
+          background: #fff;
+          color: #7A4F3E;
+          border: 1px solid #7A4F3E;
+        }
+        .ls-error {
+          color: #88024F;
+          font-size: 12px;
+          margin-bottom: 6px;
+        }
+        .ls-role-group {
+          display: flex;
+          gap: 8px;
+          margin: 6px 0 12px 0;
+        }
+        .role-pill {
+          padding: 8px 12px;
+          border-radius: 6px;
+          border: 1px solid #ddd;
+          cursor: pointer;
+          font-size: 13px;
+        }
+        .role-pill.active {
+          background: #FFA726;
+          color: #fff;
+          border-color: #FFA726;
+        }
+        .ls-message {
+          font-size: 13px;
+          color: #4DB16C;
+          margin-top: 8px;
+        }
+        .ls-footer {
+          text-align: center;
+          font-size: 12px;
+          color: #3E3E3E;
+          margin-top: 14px;
+        }
+      `}</style>
+
+      <motion.div className="ls-card" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.35 }}>
+        <div className="ls-header">
+          <div>
+            <h2 className="ls-title">{mode === "login" ? "Welcome back" : "Create account"}</h2>
+            <p className="ls-sub">{mode === "login" ? "Sign in to manage your events" : "Sign up to create or join events"}</p>
+          </div>
+          <div className="ls-brand">SIMBA</div>
         </div>
 
-        <h2 style={styles.title}>{mode === "login" ? "Sign in to Simba Events" : "Create your Simba account"}</h2>
-
-        {errorMsg && <div style={styles.alertError}>{errorMsg}</div>}
-        {successMsg && <div style={styles.alertSuccess}>{successMsg}</div>}
-
-        {mode === "login" ? (
-          <form onSubmit={handleLogin}>
-            <label style={styles.label}>
-              Email
-              <input style={styles.input} type="email" value={loginEmail} onChange={(e) => setLoginEmail(e.target.value)} placeholder="you@domain.com" />
-            </label>
-
-            <label style={styles.label}>
-              Password
-              <input style={styles.input} type="password" value={loginPassword} onChange={(e) => setLoginPassword(e.target.value)} placeholder="Your password" />
-            </label>
-
-            <button style={styles.btnPrimary} type="submit" disabled={loading}>
-              {loading ? "Signing in..." : "Sign in"}
-            </button>
-            <div style={styles.small}>
-              Don't have an account? <button type="button" onClick={() => setMode("signup")} style={{ color: "#7a4f3e", background: "none", border: "none", cursor: "pointer", fontWeight: 700 }}>Create one</button>
+        <form onSubmit={handleSubmit}>
+          {mode === "signup" && (
+            <div>
+              <label>Full Name</label>
+              <input name="name" value={form.name} onChange={handleChange} placeholder="Your full name" />
+              {errors.name && <div className="ls-error">{errors.name}</div>}
             </div>
-          </form>
-        ) : (
-          <form onSubmit={handleSignup}>
-            <label style={styles.label}>
-              Full name
-              <input style={styles.input} value={userName} onChange={(e) => setUserName(e.target.value)} placeholder="First Last" />
-            </label>
+          )}
 
-            <label style={styles.label}>
-              Role
-              <select style={{ ...styles.input, padding: 10 }} value={role} onChange={(e) => setRole(e.target.value)}>
-                <option value="User">User</option>
-                <option value="Organiser">Organiser</option>
-              </select>
-            </label>
+          <label>Email</label>
+          <input name="email" value={form.email} onChange={handleChange} type="email" placeholder="you@example.com" />
+          {errors.email && <div className="ls-error">{errors.email}</div>}
 
-            <label style={styles.label}>
-              Email
-              <input style={styles.input} type="email" value={signupEmail} onChange={(e) => setSignupEmail(e.target.value)} placeholder="you@domain.com" />
-            </label>
+          <label>Password</label>
+          <input name="password" value={form.password} onChange={handleChange} type="password" placeholder="At least 6 characters" />
+          {errors.password && <div className="ls-error">{errors.password}</div>}
 
-            <label style={styles.label}>
-              Password
-              <input style={styles.input} type="password" value={signupPassword} onChange={(e) => setSignupPassword(e.target.value)} placeholder="Create a password" />
-            </label>
+          {mode === "signup" && (
+            <>
+              <label>Confirm Password</label>
+              <input name="confirmPassword" value={form.confirmPassword} onChange={handleChange} type="password" placeholder="Re-type password" />
+              {errors.confirmPassword && <div className="ls-error">{errors.confirmPassword}</div>}
 
-            <label style={styles.label}>
-              Phone (optional)
-              <input style={styles.input} type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="9876543210" />
-            </label>
+              <label>I am</label>
+              <div className="ls-role-group">
+                <button type="button" className={`role-pill ${form.role === 'attendee' ? 'active' : ''}`} onClick={() => setForm(prev => ({ ...prev, role: 'attendee' }))}>Attendee</button>
+                <button type="button" className={`role-pill ${form.role === 'organizer' ? 'active' : ''}`} onClick={() => setForm(prev => ({ ...prev, role: 'organizer' }))}>Organizer</button>
+              </div>
+            </>
+          )}
 
-            <label style={styles.label}>
-              Location (optional)
-              <input style={styles.input} value={locationStr} onChange={(e) => setLocationStr(e.target.value)} placeholder="City, State" />
-            </label>
-
-            <button style={styles.btnPrimary} type="submit" disabled={loading}>
-              {loading ? "Creating..." : "Create account"}
+          <div style={{ display: 'flex', gap: '10px', marginTop: '10px' }}>
+            <button className="btn btn-primary" type="submit" disabled={loading}>{loading ? (mode === 'login' ? 'Signing in...' : 'Creating...') : (mode === 'login' ? 'Login' : 'Sign Up')}</button>
+            <button type="button" className="btn btn-ghost" onClick={() => { setMode(prev => prev === 'login' ? 'signup' : 'login'); setMessage(null); }}>
+              {mode === 'login' ? 'Create Account' : 'Have an Account?'}
             </button>
+          </div>
 
-            <div style={styles.small}>
-              Already have an account? <button type="button" onClick={() => setMode("login")} style={{ color: "#7a4f3e", background: "none", border: "none", cursor: "pointer", fontWeight: 700 }}>Sign in</button>
-            </div>
-          </form>
-        )}
-      </div>
+          {message && <div className="ls-message">{message}</div>}
+        </form>
+
+        <div className="ls-footer">By continuing, you agree to our Terms & Privacy.</div>
+      </motion.div>
     </div>
   );
 }
-
-
