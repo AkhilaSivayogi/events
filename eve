@@ -1,358 +1,375 @@
-// LandingPage.jsx
-import React from 'react';
-import { useNavigate } from 'react-router-dom';
-import './landing.css';
+program.cs:
 
-export default function LandingPage() {
-  const nav = useNavigate();
+using Backend.Data;
+using Backend.Services;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.IdentityModel.Tokens;
+using System.Text;
 
-  return (
-    <div className="landing-root">
-      <header className="hero">
-        <div className="hero-inner">
-          <h1 className="title">Simba Events</h1>
-          <p className="tagline">Manage events, attendees and schedules — all in one place.</p>
+var builder = WebApplication.CreateBuilder(args);
+var config = builder.Configuration;
+var services = builder.Services;
 
-          <div className="cta-row">
-            <button
-              className="btn btn-primary"
-              onClick={() => nav('/auth?mode=login')}
-            >
-              Login
-            </button>
+// --- Add EF Core (SQL Server example) ---
+services.AddDbContext<AppDbContext>(options =>
+    options.UseSqlServer(config.GetConnectionString("DefaultConnection")));
 
-            <button
-              className="btn btn-accent"
-              onClick={() => nav('/auth?mode=signup')}
-            >
-              Sign up
-            </button>
-          </div>
+// --- CORS: allow React dev server (change to production origin for deploy) ---
+services.AddCors(options =>
+{
+    options.AddPolicy("AllowReactDev", policy =>
+    {
+        policy.WithOrigins("http://localhost:3000") // frontend origin (development)
+              .AllowAnyHeader()
+              .AllowAnyMethod()
+              .AllowCredentials();
+    });
+});
 
-          <p className="small-note">Create or join events quickly — secure sign-in.</p>
-        </div>
+// --- Add controllers ---
+services.AddControllers();
 
-        <div className="hero-visual" aria-hidden>
-          {/* optional illustration or hero card; keep empty or replace with an <img> */}
-        </div>
-      </header>
-
-      <section className="features">
-        <div className="feature">
-          <h3>Easy Setup</h3>
-          <p>Get started with a single click — create and manage events.</p>
-        </div>
-        <div className="feature">
-          <h3>Attendee Management</h3>
-          <p>Check-ins, schedules, and tickets in one dashboard.</p>
-        </div>
-        <div className="feature">
-          <h3>Secure</h3>
-          <p>Modern authentication flow and role-based access.</p>
-        </div>
-      </section>
-    </div>
-  );
-}
---------------------------------------------------------------------------------------
-/* landing.css - Simba Events landing (no Tailwind) */
-
-:root{
-  --primary: #7A4F3E;   /* buttons, headings */
-  --accent:  #FFA726;   /* highlights */
-  --sec1:    #4DB16A;   /* secondary */
-  --burg:    #88024F;   /* burgundy */
-  --soft:    #F5F5BC;   /* soft background */
-  --text:    #2F2F2F;   /* modern grey */
-  --muted:   #6b7280;
+// --- Configure JWT authentication ---
+var jwtKey = config["Jwt:Key"];
+var jwtIssuer = config["Jwt:Issuer"];
+var jwtAudience = config["Jwt:Audience"];
+if (string.IsNullOrEmpty(jwtKey))
+{
+    throw new Exception("Jwt:Key is not configured. Set it in appsettings.json or environment.");
 }
 
-*{box-sizing:border-box}
-body{margin:0;font-family:Inter, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;background:white;color:var(--text)}
+services.AddAuthentication(options =>
+{
+    options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
+    options.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
+})
+.AddJwtBearer(options =>
+{
+    options.RequireHttpsMetadata = true;
+    options.SaveToken = true;
+    options.TokenValidationParameters = new TokenValidationParameters
+    {
+        ValidateIssuerSigningKey = true,
+        IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtKey)),
+        ValidateIssuer = true,
+        ValidIssuer = jwtIssuer,
+        ValidateAudience = true,
+        ValidAudience = jwtAudience,
+        ValidateLifetime = true,
+        ClockSkew = TimeSpan.FromMinutes(2)
+    };
+});
 
-/* layout */
-.landing-root{max-width:1100px;margin:36px auto;padding:18px}
+// --- DI: application services ---
+services.AddScoped<ITokenService, TokenService>();
+services.AddScoped<IAuthService, AuthService>();
 
-/* hero */
-.hero{display:flex;gap:28px;align-items:center;padding:28px;border-radius:12px;background:linear-gradient(180deg,var(--soft),#ffffff);box-shadow:0 6px 20px rgba(15,15,15,0.06)}
-.hero-inner{flex:1;min-width:320px}
-.title{margin:0;font-size:36px;color:var(--primary);letter-spacing:0.2px}
-.tagline{margin:8px 0 18px 0;color:var(--text);opacity:0.95;font-size:16px}
+// optional: swagger for debugging
+services.AddEndpointsApiExplorer();
+services.AddSwaggerGen();
 
-/* ctas */
-.cta-row{display:flex;gap:12px;margin-bottom:12px}
-.btn{padding:12px 18px;border-radius:10px;border:none;font-weight:600;cursor:pointer;font-size:15px}
-.btn:active{transform:translateY(1px)}
-.btn-primary{background:var(--primary);color:white;box-shadow:0 6px 18px rgba(122,79,62,0.12)}
-.btn-accent{background:var(--accent);color:#2b2b2b}
-.small-note{font-size:13px;color:var(--muted)}
+var app = builder.Build();
 
-/* features */
-.features{display:flex;gap:14px;margin-top:22px}
-.feature{flex:1;padding:14px;border-radius:10px;background:white;border:1px solid rgba(16,24,40,0.03);box-shadow:0 6px 15px rgba(2,6,23,0.03)}
-.feature h3{margin:0 0 6px 0;color:var(--primary)}
-.feature p{margin:0;color:var(--muted);font-size:14px}
-
-/* responsive */
-@media(max-width:860px){
-  .hero{flex-direction:column;align-items:flex-start}
-  .features{flex-direction:column}
+// --- Middleware pipeline (order matters) ---
+if (app.Environment.IsDevelopment())
+{
+    app.UseSwagger();
+    app.UseSwaggerUI();
 }
+
+app.UseHttpsRedirection();
+
+// Note: Call UseCors before UseAuthentication/UseAuthorization if you need CORS on auth endpoints
+app.UseCors("AllowReactDev");
+
+app.UseAuthentication();
+app.UseAuthorization();
+
+app.MapControllers();
+
+app.Run();
+
+-------------------------------------------------------------------------------------------------------------------
+appdbcontext.cs:
+
+using Backend.Models;
+using Microsoft.EntityFrameworkCore;
+
+namespace Backend.Data
+{
+    public class AppDbContext : DbContext
+    {
+        public AppDbContext(DbContextOptions<AppDbContext> opts) : base(opts) { }
+
+        public DbSet<User> Users { get; set; }
+
+        protected override void OnModelCreating(ModelBuilder modelBuilder)
+        {
+            modelBuilder.Entity<User>()
+                .HasIndex(u => u.Email)
+                .IsUnique();
+
+            base.OnModelCreating(modelBuilder);
+        }
+    }
+}
+--------------------------------------------------------------------
+models uses.cs
+
+
+using System.ComponentModel.DataAnnotations;
+
+namespace Backend.Models
+{
+    public class User
+    {
+        public int Id { get; set; }
+
+        [Required, MaxLength(150)]
+        public string FullName { get; set; }
+
+        [Required, MaxLength(80)]
+        public string Role { get; set; }
+
+        [Required, MaxLength(200)]
+        public string Email { get; set; }
+
+        [Required]
+        public string PasswordHash { get; set; }
+
+        public string Phone { get; set; }
+        public string Address { get; set; }
+    }
+}
+--------------------------------------------------------------------------------------------
+dto authdto.cs:
+
+namespace Backend.DTOs
+{
+    public class RegisterDto
+    {
+        public string FullName { get; set; }
+        public string Role { get; set; }
+        public string Email { get; set; }
+        public string Password { get; set; }
+        public string Phone { get; set; }
+        public string Address { get; set; }
+    }
+
+    public class LoginDto
+    {
+        public string Email { get; set; }
+        public string Password { get; set; }
+    }
+
+    public class AuthResponseDto
+    {
+        public string Token { get; set; }
+        public DateTime Expires { get; set; }
+        public object User { get; set; } // id, fullName, role, email
+    }
+}
+--------------------------------------------------------------------------------------------------------------
+Services: ITokenService + TokenService
+using Backend.Models;
+
+namespace Backend.Services
+{
+    public interface ITokenService
+    {
+        string CreateToken(User user);
+    }
+}
+
+
+using Backend.Models;
+using Microsoft.Extensions.Configuration;
+using Microsoft.IdentityModel.Tokens;
+using System.IdentityModel.Tokens.Jwt;
+using System.Security.Claims;
+using System.Text;
+
+namespace Backend.Services
+{
+    public class TokenService : ITokenService
+    {
+        private readonly IConfiguration _config;
+        public TokenService(IConfiguration config) => _config = config;
+
+        public string CreateToken(User user)
+        {
+            var key = _config["Jwt:Key"];
+            var issuer = _config["Jwt:Issuer"];
+            var audience = _config["Jwt:Audience"];
+            var expiryMinutes = int.TryParse(_config["Jwt:DurationInMinutes"], out var m) ? m : 60;
+
+            var claims = new[]
+            {
+                new Claim(JwtRegisteredClaimNames.Sub, user.Email),
+                new Claim("id", user.Id.ToString()),
+                new Claim("role", user.Role ?? ""),
+                new Claim("name", user.FullName ?? "")
+            };
+
+            var symmetricKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(key));
+            var creds = new SigningCredentials(symmetricKey, SecurityAlgorithms.HmacSha256);
+            var expires = DateTime.UtcNow.AddMinutes(expiryMinutes);
+
+            var token = new JwtSecurityToken(
+                issuer: issuer,
+                audience: audience,
+                claims: claims,
+                expires: expires,
+                signingCredentials: creds);
+
+            return new JwtSecurityTokenHandler().WriteToken(token);
+        }
+    }
+}
+---------------------------------------------------------------------------------------------------
+Services: IAuthService + AuthService
+
+using Backend.DTOs;
+using Backend.Models;
+
+namespace Backend.Services
+{
+    public interface IAuthService
+    {
+        Task<(bool Success, string Error)> RegisterAsync(RegisterDto dto);
+        Task<(bool Success, AuthResponseDto Response, string Error)> LoginAsync(LoginDto dto);
+    }
+}
+
+
+
+using Backend.Data;
+using Backend.DTOs;
+using Backend.Models;
+using Microsoft.EntityFrameworkCore;
+
+namespace Backend.Services
+{
+    public class AuthService : IAuthService
+    {
+        private readonly AppDbContext _db;
+        private readonly ITokenService _tokenService;
+
+        public AuthService(AppDbContext db, ITokenService tokenService)
+        {
+            _db = db;
+            _tokenService = tokenService;
+        }
+
+        public async Task<(bool Success, string Error)> RegisterAsync(RegisterDto dto)
+        {
+            var email = dto.Email?.Trim().ToLower();
+            if (string.IsNullOrEmpty(email) || !new System.ComponentModel.DataAnnotations.EmailAddressAttribute().IsValid(email))
+                return (false, "Invalid email");
+
+            if (string.IsNullOrEmpty(dto.Password) || dto.Password.Length < 6)
+                return (false, "Password must be at least 6 characters");
+
+            var exists = await _db.Users.AnyAsync(u => u.Email == email);
+            if (exists) return (false, "Email already registered");
+
+            var user = new User
+            {
+                FullName = dto.FullName,
+                Role = dto.Role,
+                Email = email,
+                PasswordHash = BCrypt.Net.BCrypt.HashPassword(dto.Password),
+                Phone = dto.Phone,
+                Address = dto.Address
+            };
+
+            _db.Users.Add(user);
+            await _db.SaveChangesAsync();
+            return (true, null);
+        }
+
+        public async Task<(bool Success, AuthResponseDto Response, string Error)> LoginAsync(LoginDto dto)
+        {
+            var email = dto.Email?.Trim().ToLower();
+            var user = await _db.Users.FirstOrDefaultAsync(u => u.Email == email);
+            if (user == null) return (false, null, "Invalid credentials");
+
+            var verified = BCrypt.Net.BCrypt.Verify(dto.Password, user.PasswordHash);
+            if (!verified) return (false, null, "Invalid credentials");
+
+            var token = _tokenService.CreateToken(user);
+            var response = new AuthResponseDto
+            {
+                Token = token,
+                Expires = DateTime.UtcNow.AddMinutes(int.TryParse(_db.Database.GetDbConnection().Database, out _) ? 60 : 60), // placeholder, use config in tokenservice if needed
+                User = new { user.Id, user.FullName, user.Role, user.Email }
+            };
+
+            return (true, response, null);
+        }
+    }
+}
+-----------------------------------------------------------------------------------------------------------
+Controller: UsersController (Auth endpoints)
+
+using Backend.DTOs;
+using Backend.Services;
+using Microsoft.AspNetCore.Mvc;
+
+namespace Backend.Controllers
+{
+    [ApiController]
+    [Route("api/[controller]")]
+    public class UsersController : ControllerBase
+    {
+        private readonly IAuthService _auth;
+
+        public UsersController(IAuthService auth) => _auth = auth;
+
+        [HttpPost("register")]
+        public async Task<IActionResult> Register([FromBody] RegisterDto dto)
+        {
+            var (success, error) = await _auth.RegisterAsync(dto);
+            if (!success) return BadRequest(new { message = error });
+            return Created(string.Empty, new { message = "User registered" });
+        }
+
+        [HttpPost("login")]
+        public async Task<IActionResult> Login([FromBody] LoginDto dto)
+        {
+            var (success, resp, error) = await _auth.LoginAsync(dto);
+            if (!success) return Unauthorized(new { message = error });
+            return Ok(resp); // { token, expires, user }
+        }
+    }
+}
+------------------------------------------------------------------------
+Migrations & Database
+dotnet tool install --global dotnet-ef
+dotnet add package Microsoft.EntityFrameworkCore.Design
+
+
+dotnet ef migrations add InitialCreate
+dotnet ef database update
 ---------------------------------------------------------------------------
-// SimbaAuth.jsx
-import React, { useEffect, useState } from 'react';
-import { useLocation, useNavigate } from 'react-router-dom';
-import './main.css';
 
-export default function SimbaAuth() {
-  const location = useLocation();
-  const navigate = useNavigate();
+appssettings:
 
-  // mode comes from ?mode=signup or ?mode=login
-  const [mode, setMode] = useState('login');
-  useEffect(() => {
-    const params = new URLSearchParams(location.search);
-    const m = params.get('mode');
-    setMode(m === 'signup' ? 'signup' : 'login');
-  }, [location.search]);
-
-  const [loading, setLoading] = useState(false);
-  // login fields
-  const [loginEmail, setLoginEmail] = useState('');
-  const [loginPassword, setLoginPassword] = useState('');
-  // signup fields
-  const [fullName, setFullName] = useState('');
-  const [role, setRole] = useState('');
-  const [signupEmail, setSignupEmail] = useState('');
-  const [signupPassword, setSignupPassword] = useState('');
-  const [phone, setPhone] = useState('');
-  const [address, setAddress] = useState('');
-
-  const [message, setMessage] = useState(null);
-  const [error, setError] = useState(null);
-
-  const isEmail = s => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s);
-  const isPhone = s => s.trim() === '' || /^\+?[0-9]{7,15}$/.test(s);
-  const isStrongPassword = p => p.length >= 6;
-
-  const USERS_KEY = 'simba_users_v1';
-
-  function readUsers() {
-    try {
-      const raw = localStorage.getItem(USERS_KEY);
-      return raw ? JSON.parse(raw) : [];
-    } catch {
-      return [];
+{
+  "ConnectionStrings": {
+    "DefaultConnection": "Server=(localdb)\\mssqllocaldb;Database=SimbaEventsDb;Trusted_Connection=True;MultipleActiveResultSets=true"
+  },
+  "Jwt": {
+    "Key": "Replace_with_a_very_long_random_secret_at_least_32_chars",
+    "Issuer": "simba.events",
+    "Audience": "simba.events",
+    "DurationInMinutes": "1440"
+  },
+  "Logging": {
+    "LogLevel": {
+      "Default": "Information"
     }
   }
-  function writeUsers(users) {
-    localStorage.setItem(USERS_KEY, JSON.stringify(users));
-  }
-
-  // Signup
-  const handleSignup = (e) => {
-    e.preventDefault();
-    setError(null);
-    setMessage(null);
-
-    if (!fullName.trim()) return setError('Please enter full name');
-    if (!role) return setError('Please select a role');
-    if (!isEmail(signupEmail)) return setError('Please enter a valid email');
-    if (!isStrongPassword(signupPassword)) return setError('Password must be at least 6 characters');
-    if (!isPhone(phone)) return setError('Please enter a valid phone number or leave blank');
-
-    setLoading(true);
-    setTimeout(() => {
-      const users = readUsers();
-      if (users.find(u => u.email.toLowerCase() === signupEmail.toLowerCase())) {
-        setLoading(false);
-        return setError('An account with that email already exists');
-      }
-      const newUser = {
-        id: Date.now(),
-        fullName,
-        role,
-        email: signupEmail,
-        password: signupPassword, // NOTE: store hashed passwords on a real backend
-        phone,
-        address
-      };
-      users.push(newUser);
-      writeUsers(users);
-      setLoading(false);
-      setMessage('Account created. You can now sign in.');
-      // reset and go to login
-      setFullName(''); setRole(''); setSignupEmail(''); setSignupPassword(''); setPhone(''); setAddress('');
-      // navigate to login mode (updates URL)
-      navigate('/auth?mode=login', { replace: true });
-    }, 700);
-  };
-
-  // Login
-  const handleLogin = (e) => {
-    e.preventDefault();
-    setError(null);
-    setMessage(null);
-    if (!isEmail(loginEmail)) return setError('Please enter a valid email');
-    if (!loginPassword) return setError('Please enter your password');
-
-    setLoading(true);
-    setTimeout(() => {
-      const users = readUsers();
-      const match = users.find(u => u.email.toLowerCase() === loginEmail.toLowerCase() && u.password === loginPassword);
-      setLoading(false);
-      if (!match) return setError('Invalid email or password');
-
-      // Mock session
-      localStorage.setItem('simba_session', JSON.stringify({ userId: match.id, email: match.email }));
-      setMessage(`Welcome back, ${match.fullName.split(' ')[0] || match.email}`);
-      setLoginEmail(''); setLoginPassword('');
-      // In a real app redirect to dashboard:
-      // navigate('/dashboard');
-    }, 600);
-  };
-
-  return (
-    <div className="simba-root">
-      <aside className="brand-panel">
-        <div>
-          <h1>Simba Events</h1>
-          <p>Manage events, attendees and schedules — all in one place.</p>
-        </div>
-        <div className="mode-toggle">
-          <button className={mode === 'login' ? 'active' : ''} onClick={() => navigate('/auth?mode=login')}>Login</button>
-          <button className={mode === 'signup' ? 'active' : ''} onClick={() => navigate('/auth?mode=signup')}>Signup</button>
-        </div>
-      </aside>
-
-      <main className="card">
-        <div className="card-inner">
-          <div className="header">
-            <h2>{mode === 'login' ? 'Welcome back' : 'Create account'}</h2>
-            <div className="switch">
-              <button onClick={() => navigate('/auth?mode=login')} className={mode === 'login' ? 'small active' : 'small'}>Login</button>
-              <button onClick={() => navigate('/auth?mode=signup')} className={mode === 'signup' ? 'small active' : 'small'}>Signup</button>
-            </div>
-          </div>
-
-          {error && <div className="alert error">{error}</div>}
-          {message && <div className="alert success">{message}</div>}
-
-          {mode === 'login' && (
-            <form onSubmit={handleLogin} className="form">
-              <label>
-                <span>Email</span>
-                <input type="email" value={loginEmail} onChange={e => setLoginEmail(e.target.value)} placeholder="you@domain.com" required />
-              </label>
-
-              <label>
-                <span>Password</span>
-                <input type="password" value={loginPassword} onChange={e => setLoginPassword(e.target.value)} placeholder="Enter your password" required />
-              </label>
-
-              <div className="row between">
-                <label className="small"><input type="checkbox" /> Remember me</label>
-                <button type="button" className="link">Forgot?</button>
-              </div>
-
-              <button className="primary" type="submit" disabled={loading}>{loading ? 'Signing in...' : 'Sign in'}</button>
-
-              <p className="muted">Don't have an account? <button type="button" className="link" onClick={() => navigate('/auth?mode=signup')}>Create one</button></p>
-            </form>
-          )}
-
-          {mode === 'signup' && (
-            <form onSubmit={handleSignup} className="form">
-              <label>
-                <span>Full name</span>
-                <input type="text" value={fullName} onChange={e => setFullName(e.target.value)} placeholder="First Last" required />
-              </label>
-
-              <label>
-                <span>Role</span>
-                <select value={role} onChange={e => setRole(e.target.value)} required>
-                  <option value="">Select role</option>
-                  <option value="attendee">Attendee</option>
-                  <option value="organizer">Organizer</option>
-                  <option value="vendor">Vendor</option>
-                  <option value="speaker">Speaker</option>
-                </select>
-              </label>
-
-              <label>
-                <span>Email</span>
-                <input type="email" value={signupEmail} onChange={e => setSignupEmail(e.target.value)} placeholder="you@domain.com" required />
-              </label>
-
-              <label>
-                <span>Password</span>
-                <input type="password" value={signupPassword} onChange={e => setSignupPassword(e.target.value)} placeholder="Create a password" required />
-              </label>
-
-              <label>
-                <span>Phone</span>
-                <input type="tel" value={phone} onChange={e => setPhone(e.target.value)} placeholder="+911234567890" />
-              </label>
-
-              <label>
-                <span>Address</span>
-                <textarea value={address} onChange={e => setAddress(e.target.value)} rows={3} placeholder="Street, City, State" />
-              </label>
-
-              <button className="primary" type="submit" disabled={loading}>{loading ? 'Creating...' : 'Create account'}</button>
-
-              <p className="muted">Already have an account? <button type="button" className="link" onClick={() => navigate('/auth?mode=login')}>Sign in</button></p>
-            </form>
-          )}
-        </div>
-      </main>
-    </div>
-  );
-}
-------------------------------------------------------------------------------------------------------------------------------
-/* main.css - styles for SimbaAuth component (no Tailwind) */
-
-:root{
-  --primary: #7A4F3E;
-  --accent:  #FFA726;
-  --text:    #2F2F2F;
-  --muted:   #6b7280;
-  --danger:  #ef4444;
 }
 
-*{box-sizing:border-box}
-body{margin:0;font-family:Inter, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;background:white;color:var(--text)}
-
-/* layout for auth */
-.simba-root{display:flex;max-width:980px;margin:40px auto;border-radius:12px;overflow:hidden;box-shadow:0 8px 30px rgba(2,6,23,0.08)}
-.brand-panel{flex:1;padding:36px;background:linear-gradient(180deg,#0ea5e9,#0369a1);color:white;display:flex;flex-direction:column;justify-content:space-between}
-.brand-panel h1{margin:0;font-size:28px}
-.brand-panel p{margin:6px 0 0 0;opacity:0.95}
-.mode-toggle{margin-top:18px;background:rgba(255,255,255,0.12);padding:6px;border-radius:999px;display:inline-flex}
-.mode-toggle button{background:transparent;border:0;color:rgba(255,255,255,0.9);padding:8px 12px;border-radius:999px;font-weight:600;cursor:pointer}
-.mode-toggle button.active{background:white;color:#0369a1}
-
-.card{flex:1;padding:30px;background:#ffffff}
-.card-inner{max-width:460px;margin:0 auto}
-.header{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}
-.header h2{margin:0}
-.switch .small{border:0;background:none;cursor:pointer;padding:6px 8px;border-radius:6px}
-.switch .small.active{background:#e6f2fb}
-
-.form{display:flex;flex-direction:column;gap:12px}
-label{display:flex;flex-direction:column;gap:6px;font-size:14px}
-input[type=text],input[type=email],input[type=password],input[type=tel],select,textarea{padding:10px;border-radius:8px;border:1px solid #e6e9ef;font-size:14px}
-.row.between{display:flex;justify-content:space-between;align-items:center}
-.small{font-size:13px;color:var(--muted)}
-.primary{background:var(--primary);color:white;border:0;padding:10px 12px;border-radius:8px;font-weight:600;cursor:pointer}
-.link{background:none;border:0;color:var(--accent);cursor:pointer;padding:0;font-size:14px}
-.muted{font-size:13px;color:var(--muted);text-align:center}
-.alert{padding:10px;border-radius:8px;margin-bottom:8px}
-.alert.error{background:#fff1f0;color:#9b1c1c;border:1px solid rgba(239,68,68,0.12)}
-.alert.success{background:#f0fdf4;color:#14532d;border:1px solid rgba(16,185,129,0.08)}
-
-@media(max-width:820px){
-  .simba-root{flex-direction:column;margin:20px}
-  .brand-panel{flex-direction:row;align-items:center;justify-content:space-between;padding:16px}
-  .card{padding:18px}
-}
